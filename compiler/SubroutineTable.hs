@@ -11,7 +11,7 @@ import Language.Fortran
 import LanguageFortranTools 
 
 
--- 	This datastructure holds subroutines, with the names of the subrouines as the key. The stored item is the AST of the subroutine
+-- 	This datastructure holds subroutines, with the names of the subroutines as the key. The stored item is the AST of the subroutine
 --	and the name of the file from which the subroutine was orignally defined.
 type SubroutineTable = DMap.Map String (ProgUnit Anno, String)
 subroutineTable_ast (a, _) =  a
@@ -32,7 +32,7 @@ constructSubroutineTable programs = foldl (\accum (ast, filename) -> DMap.insert
 		where
 			parsedSubroutines = foldl (\accum (ast, filename) -> accum ++ (map (\x -> (x, filename)) (extractSubroutines ast))) [] programs
 
---	Function is called by main to compile the set of argument translation tables for all of the parsed subroutines.
+--	This function is called by Main to compile the set of argument translation tables for all of the parsed subroutines.
 --	STEPS:
 --		-	Extract all calls to subroutines in the chosen AST (usually the main)
 --		-	Call 'generateArgumentTranslationSubroutines' on each call:

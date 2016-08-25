@@ -3,7 +3,7 @@ module FortranGenerator
 where
 
 -- This module houses most of the functions used by the code emission stage of compilation that aim to produce 
--- some new fortran node. While the import heirarchy here is not fantastic, and there is a large degree of coupling,
+-- some new fortran node. While the import hierarchy here is not fantastic, and there is a large degree of coupling,
 -- separating code emission into many files allows for more easy understanding of what's actually going on.
 
 -- Many of the functions here make calls to functions in 'CodeEmitterUtils' to acheive their goal. Most of the functions

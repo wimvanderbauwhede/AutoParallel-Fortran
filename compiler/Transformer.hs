@@ -4,11 +4,11 @@ where
 
 --	This module handles the parallelism detection of the compiler, along with loop/kernel fusion. The main method first calls 'paralleliseProgUnit_foldl' in a left fold
 --	with a table of subroutines. The result there is a new subroutine table with parallelised subroutines along with a set of parallelism errors (annotations) that are
---	to be output to the user. To the parallelism analysis code is housed in 'LoopAnalysis.hs' but this module performs the transformations to abstract syntax trees in
+--	to be output to the user. The parallelism analysis code is housed in 'LoopAnalysis.hs' but this module performs the transformations to abstract syntax trees in
 --	order to include OpenCLMap and OpenCLReduce nodes.
 
 --	After the parallelism is detected, the main makes calls to 'combineKernelProgUnit_foldl', again in a left fold and with a table of subroutines. This function returns
---	a new table of subroutines, with less kernels hopefully, along with some strings to be output to the user. The strings in this case describe which (if any) loop fusions
+--	a new table of subroutines, with fewer kernels hopefully, along with some strings to be output to the user. The strings in this case describe which (if any) loop fusions
 --	have been performed. These messages, as well as the parallelism errors mentioned previously, are only reported in verbose mode ('-v' command line argument)
 
 import Control.Monad
@@ -141,11 +141,11 @@ paralleliseLoop_map filename loop loopVarNames nonTempVars prexistingVars depend
 										containedLoopIteratorVarNames = (map (\(a, _, _, _) -> a) (loopCondtions_query loop))
 
 										reads_map_varnames = foldl (++) [] (map extractVarNames reads_map)
-										readArgs = (listRemoveDuplications $ listSubtract reads_map_varnames (containedLoopIteratorVarNames)	)	-- List of arguments to kernel that are READ
+										readArgs = listRemoveDuplications $ listSubtract reads_map_varnames containedLoopIteratorVarNames	-- List of arguments to kernel that are READ
 										-- readArgs = (listRemoveDuplications $ listSubtract reads_map_varnames (containedLoopIteratorVarNames ++ varNames_loopConditions)	)	-- List of arguments to kernel that are READ
 										
 										writes_map_varnames = foldl (++) [] (map extractVarNames writes_map)
-										writtenArgs = (listRemoveDuplications $ listSubtract writes_map_varnames containedLoopIteratorVarNames) 	-- List of arguments to kernel that are WRITTEN
+										writtenArgs = listRemoveDuplications $ listSubtract writes_map_varnames containedLoopIteratorVarNames 	-- List of arguments to kernel that are WRITTEN
 
 										mapCode = OpenCLMap nullAnno (generateSrcSpan filename (srcSpan loop)) 	-- Node to represent the data needed for an OpenCL map kernel
 											readArgs		-- List of arguments to kernel that are READ

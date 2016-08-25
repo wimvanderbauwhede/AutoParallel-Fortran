@@ -1,4 +1,4 @@
-module BufferTransferAnalysis 		(optimiseBufferTransfers, replaceSubroutineAppearences)
+module BufferTransferAnalysis 		(optimiseBufferTransfers, replaceSubroutineAppearances)
 
 where
 
@@ -38,7 +38,7 @@ optimiseBufferTransfers subTable argTranslations mainAst = -- error ("kernels_op
 															(newSubTable, 
 														 		newMainAst_withReadsWrites)
 		where
-			flattenedAst = flattenSubroutineAppearences subTable argTranslations mainAst
+			flattenedAst = flattenSubroutineAppearances subTable argTranslations mainAst
 			flattenedVarAccessAnalysis = analyseAllVarAccess flattenedAst
 			optimisedFlattenedAst = optimseBufferTransfers_program flattenedVarAccessAnalysis flattenedAst
 
@@ -141,9 +141,9 @@ findReadConsiderationStart targetSrcLoc codeSeg 	|	reachedTarget = fst src
 			recursiveResult = filter (/= nullSrcLoc) (gmapQ (mkQ nullSrcLoc (findReadConsiderationStart targetSrcLoc)) codeSeg)		
 
 
-replaceSubroutineAppearences :: SubroutineTable -> [Program Anno] -> [Program Anno]
-replaceSubroutineAppearences subTable [] = []
-replaceSubroutineAppearences subTable (firstProgram:programs) = updated:replaceSubroutineAppearences subTable programs
+replaceSubroutineAppearances :: SubroutineTable -> [Program Anno] -> [Program Anno]
+replaceSubroutineAppearances subTable [] = []
+replaceSubroutineAppearances subTable (firstProgram:programs) = updated:replaceSubroutineAppearances subTable programs
 		where 
 			updated = everywhere (mkT (replaceSubroutine subTable)) firstProgram
 
@@ -153,7 +153,7 @@ replaceSubroutine subTable codeSeg = case codeSeg of
 								_ -> codeSeg
 
 --	This function has no type signiture to allow it to be appled to any AST node, making using of SYB generics.
-flattenSubroutineAppearences subTable argTransTable mainAst = updated
+flattenSubroutineAppearances subTable argTransTable mainAst = updated
 		where
 			subroutines = DMap.keys subTable
 			updated = everywhere (mkT (flattenSubroutineCall_container subTable argTransTable)) mainAst

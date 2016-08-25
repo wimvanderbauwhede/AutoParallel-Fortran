@@ -1,6 +1,17 @@
-module VarAccessAnalysis 			(VarAccessAnalysis, analyseAllVarAccess, analyseAllVarAccess_progUnit, getPrexistingVars, getValueAtSrcSpan, 
-									getNonTempVars,getAccessLocationsInsideSrcSpan, isFunctionCall, getAccessesBetweenSrcSpans, getAccessLocationsBeforeSrcSpan, 
-									getAccessLocationsAfterSrcSpan, getAccessesBetweenSrcSpansIgnore)
+module VarAccessAnalysis (
+        VarAccessAnalysis, 
+        analyseAllVarAccess, 
+        analyseAllVarAccess_progUnit, 
+        getPrexistingVars, 
+        getValueAtSrcSpan, 
+		getNonTempVars,
+        getAccessLocationsInsideSrcSpan, 
+        isFunctionCall, 
+        getAccessesBetweenSrcSpans, 
+        getAccessLocationsBeforeSrcSpan, 
+		getAccessLocationsAfterSrcSpan, 
+        getAccessesBetweenSrcSpansIgnore
+        )
 
 where
 
@@ -251,6 +262,8 @@ analyseAllVarAccess_fortran declarations prevAnalysis codeSeg = case codeSeg of
 													analysisIncChildren_list = gmapQ (mkQ (DMap.empty) (analyseAllVarAccess_fortran declarations analysis)) codeSeg
 													analysisIncChildren = foldl (combineLocalVarAccessAnalysis) DMap.empty analysisIncChildren_list
 
+-- WV: I guess the structure of the If is:
+-- If  _ _ condition first_block [else_if cond more_blocks] (Maybe else_block)                                                    
 -- If   p SrcSpan (Expr p) (Fortran p) [((Expr p),(Fortran p))] (Maybe (Fortran p))
 
 collectVarNames :: [VarName Anno] -> Expr Anno -> [VarName Anno]

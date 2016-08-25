@@ -28,37 +28,30 @@ where
 --				with their filenames to generate host code.
 --		8)	Finally, code is emitted.
 
+{-
+Concerns/TODO
+ - Improve naming conventions
+ - Convert clusters of buffer reads/writes to subroutine calls
+ - Consider the possibility of a call to a host subroutine happening after a call to an OpenCL kernel inside a small loop. The vars that are written by the host must therefore be rewritten to buffers at the start of the loop
+ - Problem with reducing into array elements. 
+   For example, in press when p(i,j,k) is a reduction variable in the sor loop. Problem seems to be worse when loop is detected as an iterative reduction rather than a normal reduction (this loop is a normal reduction when the calls to boundp1 and boundp2 are commented out). The issue may stem from the fact that no initial value for the array element may be produced. It is this problem that means that p is not read back to the host for calls to boundp1 and boundp2
+
+-}            
+
 import Data.Generics 			(Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
 import Language.Fortran
 import System.Environment
 import qualified Data.Map as DMap 
 
 import Transformer 				(paralleliseProgUnit_foldl, combineKernelProgUnit_foldl)
-import BufferTransferAnalysis 	(optimiseBufferTransfers, replaceSubroutineAppearences)
+import BufferTransferAnalysis 	(optimiseBufferTransfers, replaceSubroutineAppearances)
 import SubroutineTable 			(constructSubroutineTable, extractArgumentTranslationSubroutines)
 import LanguageFortranTools 	(Anno, appendToMap, errorLocationFormatting, nullAnno, nullSrcSpan, generateVar, outputTab, parseFile, compilerName)
 import CodeEmitter 				(emit)
 
 -- main :: IO [()]
 main = do
-
-	putStr "\nConcerns/To do:"
-	putStr ("\n" 	++ outputTab ++ "- Improve naming conventions")
-	putStr ("\n" 	++ outputTab ++ "- Convert clusters of buffer reads/writes to subroutine calls")
-	putStr ("\n" 	++ outputTab ++ "- Consider the possibility of a call to a host subroutine happening after a\n"
-					++ outputTab ++ "call to an OpenCL kernel inside a small loop. The vars that are written by the\n"
-					++ outputTab ++ "host must therefore be rewritten to buffers at the start of the loop")
-	putStr ("\n" 	++ outputTab ++ "- Problem with reducing into array elements. For example, in press when p(i,j,k)\n"
-					++ outputTab ++ "is a reduction variable in the sor loop. Problem seems to be worse when loop is\n"
-					++ outputTab ++ "detected as an iterative reduction rather than a normal reduction (this loop is\n"
-					++ outputTab ++ "a normal reduction when the calls to boundp1 and boundp2 are commented out). The\n"
-					++ outputTab ++ "issue may stem from the fact that no initial value for the array element may be\n"
-					++ outputTab ++ "produced. It is this problem that means that p is not read back to the host\n"
-					++ outputTab ++ "for calls to boundp1 and boundp2\n"
-					)
-	putStr "\n\n"
-
-	-- < STEP 1 >
+	-- < STEP 1 : Argument processin >
 	args <- getArgs
 	let argMap = processArgs args
 	let filenames = case DMap.lookup filenameFlag argMap of
@@ -80,42 +73,41 @@ main = do
 						Just a -> True
 						Nothing -> False
 	let cppDFlags = DMap.findWithDefault [] cppDefineFlag argMap
-	-- </STEP 1 >
 
-	-- < STEP 2 >
+	-- < STEP 2 : Parsing >
 	parsedPrograms <- mapM (parseFile cppDFlags fixedForm) filenames
 	parsedMain <- parseFile cppDFlags fixedForm mainFilename
-	-- </STEP 2 >
 
-	-- < STEP 3 >
+	-- < STEP 3 : Construct subroutine AST lists>
 	let parsedSubroutines = constructSubroutineTable (zip parsedPrograms filenames)
 	let subroutineNames = DMap.keys parsedSubroutines
-	let subroutineList = foldl (\accum item -> accum ++ [[DMap.findWithDefault (error "main:subroutineList") item parsedSubroutines]]) [] (subroutineNames)
-	-- </STEP 3 >
+    
+    -- < STEP 4 : Parallelise the loops >
+	let (parallelisedSubroutines, parAnnotations) = foldl (paralleliseProgUnit_foldl parsedSubroutines) (DMap.empty, []) subroutineNames 				
 
-	
-	let (parallelisedSubroutines, parAnnotations) = foldl (paralleliseProgUnit_foldl parsedSubroutines) (DMap.empty, []) subroutineNames 				-- < STEP 4 >	
-	let (combinedKernelSubroutines, combAnnotations) = foldl (combineKernelProgUnit_foldl loopFusionBound) (parallelisedSubroutines, []) subroutineNames-- < STEP 5 >
-	let annotationListings = map (combineAnnotationListings_map parAnnotations) combAnnotations 														-- < STEP 6 >
+    -- < STEP 5 : >    
+	let (combinedKernelSubroutines, combAnnotations) = foldl (combineKernelProgUnit_foldl loopFusionBound) (parallelisedSubroutines, []) subroutineNames
 
-	--	< STEP 7a >
+    -- < STEP 6a : create annotation listings >
+	let annotationListings = map (combineAnnotationListings_map parAnnotations) combAnnotations 														
+
+	--	< STEP 7a : >
 	let argTranslations = extractArgumentTranslationSubroutines combinedKernelSubroutines parsedMain
 	let (optimisedBufferTransfersSubroutines, newMainAst) = optimiseBufferTransfers combinedKernelSubroutines argTranslations parsedMain 
-	--	</STEP 7a >
 	
-	--	< STEP 7b >
+	--	< STEP 7b : >
 	let parallelisedSubroutineList = map (\x -> DMap.findWithDefault (error "parallelisedSubroutineList") x combinedKernelSubroutines) subroutineNames
 	let fileCoordinated_parallelisedMap = foldl (\dmap (ast, filename) -> appendToMap filename ast dmap) DMap.empty parallelisedSubroutineList
 	let fileCoordinated_parallelisedList = map (\x -> (DMap.findWithDefault (error "fileCoordinated_parallelisedMap") x fileCoordinated_parallelisedMap, x)) filenames
-	--	</STEP 7b >
 	
-	--	< STEP 7c >
-	let fileCoordinated_bufferOptimisedPrograms = zip (replaceSubroutineAppearences optimisedBufferTransfersSubroutines parsedPrograms) filenames
-	--	</STEP 7c >
+	--	< STEP 7c : >
+	let fileCoordinated_bufferOptimisedPrograms = zip (replaceSubroutineAppearances optimisedBufferTransfersSubroutines parsedPrograms) filenames
 	
+    -- < STEP 6b : Print annotation listings >
 	mapM (\(filename, par_anno, comb_anno) -> putStr $ compilerName ++ ": Analysing " ++ filename ++ (if verbose then "\n\n" ++ par_anno ++ "\n" ++ comb_anno ++ "\n" else "\n")) annotationListings
 
-	putStr (compilerName ++ ": Synthesising OpenCL files\n")
+    -- < STEP 8 : Emitter >
+	putStrLn $ compilerName ++ ": Synthesising OpenCL files"
 	emit outDirectory cppDFlags fixedForm fileCoordinated_parallelisedList fileCoordinated_bufferOptimisedPrograms argTranslations (newMainAst, mainFilename) [] [] -- < STEP 8 >
 
 filenameFlag = "-modules"
@@ -150,7 +142,11 @@ addArg argMap flag value = DMap.insert flag newValues argMap
 			oldValues = DMap.findWithDefault [] flag argMap
 			newValues = oldValues ++ [value]
 
-usageError = error "USAGE: [<filename>] -main <filename> [<flag> <value>]"
+usageError = error "USAGE: [<filename1>,<filename2>,... ] -main <filename> [<flag> <value>]"
 
 combineAnnotationListings_map :: [(String, String)] -> (String, String) -> (String, String, String)
-combineAnnotationListings_map annoations (currentFilename, currentAnno) = foldl (\accum (filename, anno) -> if filename == currentFilename then (filename, currentAnno, anno) else accum) (currentFilename, currentAnno, "") annoations
+combineAnnotationListings_map annotations (currentFilename, currentAnno) = 
+    foldl (\accum (filename, anno) -> 
+            if filename == currentFilename 
+                then (filename, currentAnno, anno) 
+                else accum) (currentFilename, currentAnno, "") annotations

@@ -2,27 +2,16 @@ module F95StatementParser  (parseF95Statement)
 
 where
 
--- import whatever you need
+--import qualified Data.Map as DMap
 import Language.Fortran.Parser
 import Language.Fortran
--- Must be compiled with -i../language-fortran/src/
+import LanguageFortranTools
+-- Must be compiled with ghc --make -i../language-fortran/src/
 
--- This function takes a single line of F95, no preprocessing is required from your side
+-- This function takes a single line of F95
 -- It returns the string resulting from calling `show` on the parsed expression
-parseF95Statement :: String -> String -> String
-parseF95Statement f95_line context_str = (show fortranAst) -- ++ "\n" ++ (show contextAst)
-		where
-			fortranAst = statement_parse f95_line
-			contextAst = context_parse context_str
--- Lanauge fortran doesn't include type information with assignments and my compiler only
--- considers types when evaluating iterator value ranges during loop analysis. 
+parseF95StatementShow :: String -> String
+parseF95StatementShow f95_line = show $ statement_parse f95_line
 
--- parse_with_your_parser :: String -> Context -> (AST, Context)    
--- readContext :: String -> Context    
-
---	TAKEN FROM "LanaguageFortranTools.hs"
-	-- 	Type used when determining allowed values for iterator variables. Holds the currently chosen values
-	-- 	for previous iterator variables that allow the calculation of inner iterator variables in the case
-	-- 	of nested loops whose bounds depends on previous iterator variables.
-	-- 	Also used during constant folding to hold current constants
-	-- type ValueTable = DMap.Map String (Float, BaseType Anno)
+parseF95Statement :: String -> Fortran Anno
+parseF95Statement f95_line = statement_parse f95_line
