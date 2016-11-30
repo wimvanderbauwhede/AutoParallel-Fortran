@@ -139,12 +139,12 @@ getDeclRank decl 	|	extractedDimensions == [] = 0
 removeIntentFromDecl :: Decl Anno -> Decl Anno
 removeIntentFromDecl decl = gmapT (mkT removeIntentFromType) decl
 
-
+-- WV: WRONG! this creates a 2-elt array decl
 declareScalarPointer_decl :: Decl Anno -> Decl Anno
 declareScalarPointer_decl decl = resultDecl
 			where
 				one = generateIntConstant 1
-				zero = generateIntConstant 0
+				zero = NullExpr nullAnno nullSrcSpan -- generateIntConstant 0
 				varname = extractAssigneeFromDecl decl
 				newVarName = scalarPointerVarName varname
 				resultDecl = replaceAllOccurences_varname (addDimension decl zero one) varname newVarName

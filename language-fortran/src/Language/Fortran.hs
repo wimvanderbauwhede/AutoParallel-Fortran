@@ -185,7 +185,7 @@ data Fortran  p = Assg p SrcSpan (Expr p) (Expr p)
                 | For  p SrcSpan (VarName p) (Expr p) (Expr p) (Expr p) (Fortran p)
                 | DoWhile  p SrcSpan (Expr p) (Fortran p)
                 | FSeq p SrcSpan (Fortran p) (Fortran p)
-                | If   p SrcSpan (Expr p) (Fortran p) [((Expr p),(Fortran p))] (Maybe (Fortran p))
+                | If p SrcSpan (Expr p) (Fortran p) [((Expr p),(Fortran p))] (Maybe (Fortran p))
                 | Allocate p SrcSpan (Expr p) (Expr p)
                 | Backspace p SrcSpan [Spec p]
                 | Call p SrcSpan (Expr p) (ArgList p)

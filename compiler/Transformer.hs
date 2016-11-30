@@ -103,6 +103,7 @@ paralleliseLoop filename loopVars accessAnalysis subTable loop = transformedAst
 													False	-> reduceWithOuterIterationAttempt_ast
 									
 --	These functions are used to extract a list of varnames that are written to in a particular chunk of code. Used to asses
+--	WV: TODO: what about subroutine calls in the loop?
 extractWrites_query :: (Typeable p, Data p) => Fortran p -> [VarName p]
 extractWrites_query = everything (++) (mkQ [] extractWrites)
 
