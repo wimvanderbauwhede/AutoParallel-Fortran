@@ -91,11 +91,12 @@ insertDecl newDecl (DSeq anno decl1 decl2) = DSeq anno decl1 (insertDecl newDecl
 insertDecl newDecl declLeaf = DSeq nullAnno declLeaf newDecl
 
 convertScalarToOneDimArray :: Decl Anno -> Decl Anno
-convertScalarToOneDimArray decl 	|	isScalar = addDimension decl zero one
+convertScalarToOneDimArray decl 	|	isScalar = addDimension decl nothing one
 									|	otherwise = decl
 		where
 			isScalar = (getDeclRank decl == 0)
 			one = generateIntConstant 1
+			nothing =  NullExpr nullAnno nullSrcSpan
 			zero = generateIntConstant 0
 
 
@@ -144,10 +145,11 @@ declareScalarPointer_decl :: Decl Anno -> Decl Anno
 declareScalarPointer_decl decl = resultDecl
 			where
 				one = generateIntConstant 1
-				zero = NullExpr nullAnno nullSrcSpan -- generateIntConstant 0
+				nothing = NullExpr nullAnno nullSrcSpan -- generateIntConstant 0
+				-- nothing = generateIntConstant 7188
 				varname = extractAssigneeFromDecl decl
 				newVarName = scalarPointerVarName varname
-				resultDecl = replaceAllOccurences_varname (addDimension decl zero one) varname newVarName
+				resultDecl = replaceAllOccurences_varname (addDimension decl nothing one) varname newVarName
 
 extractDimensionAttr :: Attr Anno -> [Attr Anno]
 extractDimensionAttr attr = case attr of

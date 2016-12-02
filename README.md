@@ -7,19 +7,25 @@ Language-Fortran, a Haskell based Fortran parser, is used by this project. The o
 
 This project requires a Haskell compiler that is at least GHC version 6.0. Otherwise, installation is very simple:
 
-```bash
-cd compiler
-make
-```
+    cd compiler
+    make
+
+If you change the `language-fortran` parser, do the following:
+    
+    cd language-fortran
+    runhaskell Setup.hs configure
+    runhaskell Setup.hs build
+
+Then copy the file `Lexer.hs` from  `dist/build/Language/Fortran` to `src/Language/Fortran`.  
 
 ## Use
 
 The compiler is a purely command line tool and offers no graphical interface. There are a number of command line arguments, but most are optional. For example, to run the compiler on a codebase whose main program is in 'main.f95' with subroutines located in 'subroutines.f95', located in the same directory as the compiler itself:
 
-```bash
-cd compiler
-./AutoParallel-Fortran -main main.f95 -modules subroutines.f95
-```
+    cd compiler
+    ./AutoParallel-Fortran -main main.f95 -modules subroutines.f95 -D NO_IO -v
+
+NOTE: currently, the -D option must be specified with at least one macro.    
 
 The `target.f95` could be replaced with an absolute or relative path if the file was located elsewhere. Supplying more than one filename to the compiler as arguments will cause it to consider both as part of the same program and produce a super kernel style program, combining the kernels that would be produced by each source file into one super kernel.
 
