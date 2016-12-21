@@ -77,24 +77,64 @@ generateLoopStartAddition varname start = generateAssgCode (generateVar varname)
 generateRangeExpr :: VarName Anno -> Expr Anno -> Expr Anno -> Fortran Anno
 generateRangeExpr varname start end = generateAssgCode (generateRangeVar varname) (generateSubtractionExpr end start)
 
+
+-- WV: fixed this because ranges must be defined first
 generateLoopInitialisers :: [(VarName Anno, Expr Anno, Expr Anno, Expr Anno)] -> Expr Anno -> Maybe(Expr Anno) -> [Fortran Anno]
 generateLoopInitialisers ((var, start, end, step):[]) iterator Nothing 
-			= 	[Assg nullAnno nullSrcSpan 
-				(generateRelVar var)
-				iterator,
+			= 	[
+                 Assg nullAnno nullSrcSpan (generateRelVar var) iterator,
+				generateLoopStartAddition var start
+            ] 
+generateLoopInitialisers ((var, start, end, step):[]) iterator (Just offset) 
+			= 	[
+--                 generateRangeExpr var start end,
+--                Assg nullAnno nullSrcSpan one zero,                                                
+				Assg nullAnno nullSrcSpan (generateRelVar var) (offset),
+				generateLoopStartAddition var start
+            ]
+-- Here is where we start. 
+-- 1. range expr
+-- 2. assign rel var to division of iterator by range vars
+-- 3. assign loop iterator                          
+generateLoopInitialisers xxs@((var, start, end, step):xs) iterator Nothing 
+			= 	(map (\(var, start, end, _) -> generateRangeExpr var start end) xxs ) ++
+                [
+--                 generateRangeExpr var start end,
+				Assg nullAnno nullSrcSpan (generateRelVar var) (Bin nullAnno nullSrcSpan (Div nullAnno)  iterator multipliedExprs),
+				generateLoopStartAddition var start
+            ]
+				++
+				generateLoopInitialisers xs iterator (Just nextOffset)
+    where
+	    followingRangeExprs = map (\(v,_,_,_) -> generateRangeVar v) xs -- this is k_range
+	    nextOffset = generateSubtractionExpr_list ([iterator] ++ [generateProductExpr_list ([generateRelVar var] ++ followingRangeExprs)])
+	    multipliedExprs = generateProductExpr_list followingRangeExprs 
+                                                     
+generateLoopInitialisers ((var, start, end, step):xs) iterator (Just offset) 
+			= 	[
+--                 generateRangeExpr var start end,
+				Assg nullAnno nullSrcSpan (generateRelVar var) (Bin nullAnno nullSrcSpan (Div nullAnno) offset multipliedExprs),
+				generateLoopStartAddition var start
+            ]
+				++
+				generateLoopInitialisers xs iterator (Just nextOffset)
+					where
+						nextOffset = generateSubtractionExpr_list ([offset] ++ [generateProductExpr_list ([generateRelVar var] ++ followingRangeExprs)])
+						followingRangeExprs = map (\(v,_,_,_) -> generateRangeVar v) xs
+						multipliedExprs = generateProductExpr_list followingRangeExprs         
+{- ORIG CODE
+generateLoopInitialisers :: [(VarName Anno, Expr Anno, Expr Anno, Expr Anno)] -> Expr Anno -> Maybe(Expr Anno) -> [Fortran Anno]
+generateLoopInitialisers ((var, start, end, step):[]) iterator Nothing 
+			= 	[Assg nullAnno nullSrcSpan (generateRelVar var) iterator,
 				generateLoopStartAddition var start] 
 generateLoopInitialisers ((var, start, end, step):[]) iterator (Just offset) 
 			= 	[generateRangeExpr var start end,
-				Assg nullAnno nullSrcSpan 
-				(generateRelVar var)
-				(offset),
+				Assg nullAnno nullSrcSpan (generateRelVar var) (offset),
 				generateLoopStartAddition var start]
 
 generateLoopInitialisers ((var, start, end, step):xs) iterator Nothing 
 			= 	[generateRangeExpr var start end,
-				Assg nullAnno nullSrcSpan 
-				(generateRelVar var)
-				(Bin nullAnno nullSrcSpan (Div nullAnno)  iterator multipliedExprs),
+				Assg nullAnno nullSrcSpan (generateRelVar var) (Bin nullAnno nullSrcSpan (Div nullAnno)  iterator multipliedExprs),
 				generateLoopStartAddition var start]
 				++
 				generateLoopInitialisers xs iterator (Just nextOffset)
@@ -104,10 +144,7 @@ generateLoopInitialisers ((var, start, end, step):xs) iterator Nothing
 						multipliedExprs = generateProductExpr_list followingRangeExprs 
 generateLoopInitialisers ((var, start, end, step):xs) iterator (Just offset) 
 			= 	[generateRangeExpr var start end,
-				Assg nullAnno nullSrcSpan (generateRelVar var)
-					(Bin nullAnno nullSrcSpan (Div nullAnno) 
-						offset
-						multipliedExprs),
+				Assg nullAnno nullSrcSpan (generateRelVar var) (Bin nullAnno nullSrcSpan (Div nullAnno) offset multipliedExprs),
 				generateLoopStartAddition var start]
 				++
 				generateLoopInitialisers xs iterator (Just nextOffset)
@@ -115,7 +152,7 @@ generateLoopInitialisers ((var, start, end, step):xs) iterator (Just offset)
 						nextOffset = generateSubtractionExpr_list ([offset] ++ [generateProductExpr_list ([generateRelVar var] ++ followingRangeExprs)])
 						followingRangeExprs = map (\(v,_,_,_) -> generateRangeVar v) xs
 						multipliedExprs = generateProductExpr_list followingRangeExprs 
-
+-}
 generateProductExpr_list :: [Expr Anno] -> Expr Anno
 generateProductExpr_list (x:[]) = x
 generateProductExpr_list (x:xs) = Bin nullAnno nullSrcSpan (Mul nullAnno) x (generateProductExpr_list xs)

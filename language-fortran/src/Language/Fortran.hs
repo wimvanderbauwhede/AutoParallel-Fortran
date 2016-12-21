@@ -89,6 +89,7 @@ data ProgUnit  p = Main      p SrcSpan                      (SubName p)  (Arg p)
                 deriving (Show, Functor, Typeable, Data, Eq)
 
 -- | Implicit none or no implicit 
+-- WV: TODO: Does not support IMPLICIT definition list
 data Implicit p = ImplicitNone p | ImplicitNull p 
                 deriving (Show, Functor, Typeable, Data, Eq)
 
@@ -98,6 +99,7 @@ type Renames = [(Variable, Variable)]
 data UseBlock p = UseBlock (Uses p) SrcLoc deriving (Show, Functor, Typeable, Data, Eq)
 
 -- | (second 'p' let's you annotate the 'cons' part of the cell)
+-- WV: TODO: Does not support ONLY
 data Uses p  = Use p (String, Renames) (Uses p) p
                 | UseNil p deriving (Show, Functor, Typeable, Data, Eq)
 

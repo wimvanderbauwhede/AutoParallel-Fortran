@@ -26,7 +26,7 @@ import Data.Char
 import Data.List
 import qualified Data.Map as DMap 
 
-import FortranGenerator
+import FortranGenerator -- WV: TODO: add the import list here
 import CodeEmitterUtils
 import LanguageFortranTools
 import SubroutineTable 					(ArgumentTranslation, ArgumentTranslationSubroutines, emptyArgumentTranslation, getSubroutineArgumentTranslation, translateArguments,
@@ -510,7 +510,7 @@ synthesiseAssg prog tabs originalLines (Assg anno src expr1 expr2)	|	partialGene
 												codeSeg = Assg anno src expr1 expr2
 
 synthesiseIf :: (Program Anno, String) -> String -> [String] -> Fortran Anno -> String
-synthesiseIf prog tabs originalLines (If anno src expr fortran lst maybeFort) 	|	partialGenerated = tabs ++ "If (" ++ outputExprFormatting expr ++ ") then\n" 
+synthesiseIf prog tabs originalLines (If anno src expr fortran lst maybeFort) 	|	partialGenerated = tabs ++ "if (" ++ outputExprFormatting expr ++ ") then\n" 
 																	++ mainFortranStr
 																	++ elseIfFortranStr
 																	++ elseFortranStr
@@ -626,6 +626,11 @@ synthesiseDeclList ((expr1, expr2, maybeInt):xs) = outputExprFormatting expr1 ++
 
 --	Function handles the construction of map kernels. The body of the kernel is the original source that appeared in the loop that
 --	has been parallelised. The extra elements are initialising OpenCL related constructs and wrapping subroutine syntax.
+--	                | OpenCLMap p SrcSpan                   -- Node to represent the data needed for an OpenCL map kernel
+--                  [VarName p]                           -- List of arguments to kernel that are READ
+--                  [VarName p]                           -- List of arguments to kernel that are WRITTEN
+--                  [(VarName p, Expr p, Expr p, Expr p)] -- Loop variables of nested maps: var, from, to, step
+--                  (Fortran p)                           -- Body of kernel code
 synthesiseOpenCLMap :: String -> [String] -> (Program Anno, String) -> Fortran Anno -> String
 synthesiseOpenCLMap inTabs originalLines programInfo (OpenCLMap anno src r w l fortran) =
 																	inTabs ++ "subroutine " ++ kernelName
