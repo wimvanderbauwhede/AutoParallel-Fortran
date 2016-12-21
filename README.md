@@ -1,11 +1,12 @@
 # AutoParallel-Fortran
 
-A domain specific, automatically parallelising source-to-source compiler for Fortran-95 that takes scientific Fortran as input and produces parallel Fortran/OpenCL.
+A domain specific, automatically parallelising source-to-source compiler for Fortran-95 that takes scientific Fortran as input and produces parallel Fortran/OpenCL. Developed by Gavin Davidson for his Masters Computing Science project at the University of Glasgow.
 
-* Developed by Gavin Davidson for his Masters Computing Science project at the University of Glasgow.
-* Maintained by Wim Vanderbauwhede
+For more details about the project, please read [Gavin's dissertation](https://github.com/wimvanderbauwhede/AutoParallel-Fortran/blob/master/docs/dissertation_Gavin_Davidson_2016.pdf).
 
 The Fortran parser used for this compiler is _Language-Fortran_, a Haskell based Fortran parser. The original parser is available at [https://github.com/dagit/language-fortran](https://github.com/dagit/language-fortran); the current project contains a modified version.
+
+This is a research project so don't expect it to work flawlessly.
 
 ## Installation
 
@@ -24,7 +25,7 @@ Then copy the file `Lexer.hs` from  `dist/build/Language/Fortran` to `src/Langua
 
     cp dist/build/Language/Fortran/Lexer.hs src/Language/Fortran
 
-## Use of the compiler
+## Using the compiler
 
 The compiler is a command line tool. There are a number of command line arguments, but most are optional. For example, to run the compiler on a codebase whose main program is in 'main.f95' with subroutines located in 'subroutines.f95', located in the same directory as the compiler itself:
 
@@ -62,7 +63,7 @@ The AutoParallel-Fortran compiler will create a module containing the kernel fil
 
 ### Now run the OpenCL translation
 
-    $PATH_TO_SCRIPT/refactorF4acc.pl -P translate_to_OpenCL -c rf4a.cfg
+    <path to script>/refactorF4acc.pl -P translate_to_OpenCL -c rf4a.cfg
 
 ## Modification of Parser and Lexer
 
