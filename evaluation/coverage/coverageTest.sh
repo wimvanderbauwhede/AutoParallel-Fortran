@@ -10,11 +10,11 @@ mkdir $RESULTDIR
 echo "---" >> "$RESULTFILE"
 date >> "$RESULTFILE"
 python "$CHANGESPY" "-h" >> "$RESULTFILE"
-for f in *.f95
+for f in bondv1.f95
 do
 	echo -e "Processing: $f"
-	OUTFILE="par_$f"
-	$COMPILER "$f" "-out" "$RESULTDIR/$OUTFILE" "-D" "NO_IO" > "$RESULTDIR/$OUTFILE$OUTEXT"
+    OUTFILE="${f%.*}_host.f95"
+	$COMPILER "$f" "-main" "main.f95" "-out" "$RESULTDIR/" "-D" "NO_IO" -v > "$RESULTDIR/$OUTFILE$OUTEXT"
 	if [ -e "$RESULTDIR/$OUTFILE" ]
 		then
 		# python "$CHANGESPY" "$f" "$RESULTDIR/$OUTFILE" >> "$RESULTFILE"

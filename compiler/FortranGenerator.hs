@@ -87,8 +87,6 @@ generateLoopInitialisers ((var, start, end, step):[]) iterator Nothing
             ] 
 generateLoopInitialisers ((var, start, end, step):[]) iterator (Just offset) 
 			= 	[
---                 generateRangeExpr var start end,
---                Assg nullAnno nullSrcSpan one zero,                                                
 				Assg nullAnno nullSrcSpan (generateRelVar var) (offset),
 				generateLoopStartAddition var start
             ]
@@ -99,7 +97,6 @@ generateLoopInitialisers ((var, start, end, step):[]) iterator (Just offset)
 generateLoopInitialisers xxs@((var, start, end, step):xs) iterator Nothing 
 			= 	(map (\(var, start, end, _) -> generateRangeExpr var start end) xxs ) ++
                 [
---                 generateRangeExpr var start end,
 				Assg nullAnno nullSrcSpan (generateRelVar var) (Bin nullAnno nullSrcSpan (Div nullAnno)  iterator multipliedExprs),
 				generateLoopStartAddition var start
             ]
@@ -112,7 +109,6 @@ generateLoopInitialisers xxs@((var, start, end, step):xs) iterator Nothing
                                                      
 generateLoopInitialisers ((var, start, end, step):xs) iterator (Just offset) 
 			= 	[
---                 generateRangeExpr var start end,
 				Assg nullAnno nullSrcSpan (generateRelVar var) (Bin nullAnno nullSrcSpan (Div nullAnno) offset multipliedExprs),
 				generateLoopStartAddition var start
             ]

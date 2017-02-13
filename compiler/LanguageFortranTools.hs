@@ -4,7 +4,7 @@ module LanguageFortranTools where
 
 import Data.Generics                     (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
 import Data.Typeable
-import Language.Fortran.Parser
+import Language.Fortran.Parser  ( parse ) -- note: parse :: String -> Program (DMap.Map String [String]) -- 
 import Language.Fortran
 import Data.Char
 import Data.List
@@ -19,7 +19,6 @@ import PreProcessor                     (preProcess)
 type Anno = DMap.Map (String) [String]
 
 --    Type used when determining allowed values for iterator variables. Holds the currently chosen values
---    for previous iterator variables that allow the calculation of inner iterator variables in the case
 --    of nested loops whose bounds depends on previous iterator variables.
 --    Also used during constant folding to hold current constants
 type ValueTable = DMap.Map String (Float, BaseType Anno)
@@ -142,6 +141,21 @@ extractOpenCLReduces' codeSeg = case codeSeg of
                             OpenCLReduce _ _ _ _ _ _ _ -> [codeSeg]
                             _ -> []
 
+extractLoopIters :: Fortran Anno -> [String]
+extractLoopIters  ast = everything (++) (mkQ [] (extractLoopIters')) ast
+
+extractLoopIters' :: Fortran Anno -> [String]
+extractLoopIters' codeSeg = case codeSeg of
+                            For _ _ (VarName _ idx) _ _ _ _ -> [idx]
+                            _ -> []
+                            
+extractLoops  ast = everything (++) (mkQ [] (extractLoops')) ast
+
+extractLoops' :: Fortran Anno -> [Fortran Anno]
+extractLoops' codeSeg = case codeSeg of
+                            For _ _ _ _ _ _ _ -> [codeSeg]
+                            _ -> []
+                            
 -- extractKernels :: Program Anno -> [Fortran Anno]
 extractKernels ast = everything (++) (mkQ [] (extractKernels')) ast
 

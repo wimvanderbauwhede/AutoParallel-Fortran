@@ -1,13 +1,20 @@
-module VarDependencyAnalysis 			(VarDependencyAnalysis, analyseDependencies, loopCarriedDependencyCheck_reductionWithIteration, loopCarriedDependencyCheck, isIndirectlyDependentOn)
-
+module VarDependencyAnalysis 			
+    (VarDependencyAnalysis, 
+     analyseDependencies, 
+     loopCarriedDependencyCheck_reductionWithIteration, 
+     loopCarriedDependencyCheck, 
+     isIndirectlyDependentOn,
+     constructLoopIterTable
+     )
 where
 
 --	The code in this file is used to perform dependency analysis for a block of code. A call to 'analyseDependencies'
 --	will produce a set of direct dependencies between variables. A direct dependency is formed when one variable is used in the 
 --	calculation of another variable's assignment. It is possible under this scheme for variables to depend upon themselves and this
---	fact is ued by Transformer.hs when looking to determine whether or not a loop represnets a reduction. This module also contains
+--	fact is used by Transformer.hs when looking to determine whether or not a loop represents a reduction. This module also contains
 --	functions to get indirect dependencies and determine whether or not loops exhibit loop carried dependencies.
 
+import Warning
 import Data.Generics 					(Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
 import Language.Fortran.Parser
 import Language.Fortran
@@ -136,7 +143,8 @@ loopCarriedDependencyCheck codeSeg 	|	simpleFailure = case inDepthFailure of
 			where
 				assignments = everything (++) (mkQ [] extractAssignments) codeSeg
 				(reads, writes) = foldl' (extractArrayIndexReadWrite_foldl) (DMap.empty, DMap.empty) assignments
-				(loopIterTable_maybe, loopVars, loopStepTable) = constructLoopIterTable (Just(Empty)) DMap.empty [] codeSeg
+				(loopIterTable_maybe, loopVars, loopStepTable) = constructLoopIterTable (Just(Empty)) DMap.empty [] (warning codeSeg (show codeSeg))
+				loopVars' = extractLoopIters codeSeg -- WV
 
 				(loopIterTable_successfull, loopIterTable) = case loopIterTable_maybe of 
 								Nothing -> (False, Empty)
@@ -146,7 +154,7 @@ loopCarriedDependencyCheck codeSeg 	|	simpleFailure = case inDepthFailure of
 				offendingExprs = foldl (++) [] (map (loopCarriedDependency_varCheck loopStepTable loopIterTable loopVars (reads, writes)) writtenVars)
 				inDepthFailure = (not loopIterTable_successfull) || offendingExprs /= []
 
-				(simpleFailure, simpleOffenders) = simpleLoopCarriedDependencyCheck reads writes
+				(simpleFailure, simpleOffenders) = simpleLoopCarriedDependencyCheck reads writes (warning loopVars' (show loopVars'))
 
 --	Given an AST representing a loop, this function will return a tuple containg a bool signifiying whether a loop carried dependency is possible
 --	and a list of pairs of expressions that cause the dependency. This version is different from the one above in that this one deals with
@@ -162,6 +170,7 @@ loopCarriedDependencyCheck_reductionWithIteration iteratingCodeSeg parallelCodeS
 				assignments = everything (++) (mkQ [] extractAssignments) parallelCodeSeg
 				(reads, writes) = foldl' (extractArrayIndexReadWrite_foldl) (DMap.empty, DMap.empty) assignments
 				(loopIterTable_maybe, loopVars, loopStepTable) = constructLoopIterTable (Just(Empty)) DMap.empty [] iteratingCodeSeg
+				loopVars' = extractLoopIters iteratingCodeSeg -- WV
 				loopVars_parallel = extractLoopVars parallelCodeSeg
 
 				loopVars_iter = listSubtract loopVars loopVars_parallel
@@ -177,29 +186,78 @@ loopCarriedDependencyCheck_reductionWithIteration iteratingCodeSeg parallelCodeS
 
 				inDepthFailure = (not loopIterTable_successfull) || offendingExprs /= []
 
-				(simpleFailure, simpleOffenders) = simpleLoopCarriedDependencyCheck reads writes
+				(simpleFailure, simpleOffenders) = simpleLoopCarriedDependencyCheck reads writes (warning loopVars' (show loopVars')) -- [VarName] -- data VarName  p = VarName p Variable
 
 				successfullExprs = (offendingExprs ++ simpleOffenders)
 
-simpleLoopCarriedDependencyCheck :: ArrayAccessExpressions -> ArrayAccessExpressions -> (Bool, [(Expr Anno, Expr Anno)])
-simpleLoopCarriedDependencyCheck reads writes = foldl (simpleLoopCarriedDependencyCheck' reads writes) (False, []) (DMap.keys writes)
+simpleLoopCarriedDependencyCheck :: ArrayAccessExpressions -> ArrayAccessExpressions -> [String] -> (Bool, [(Expr Anno, Expr Anno)])
+simpleLoopCarriedDependencyCheck reads writes loopVars = foldl (simpleLoopCarriedDependencyCheck' reads writes loopVars) (False, []) (DMap.keys writes)
 
-simpleLoopCarriedDependencyCheck' :: ArrayAccessExpressions -> ArrayAccessExpressions -> (Bool, [(Expr Anno, Expr Anno)]) -> VarName Anno -> (Bool, [(Expr Anno, Expr Anno)])
-simpleLoopCarriedDependencyCheck' reads writes (prevBool, prevPairs) var = (check_bool || prevBool, prevPairs ++ offendingPairs)
+simpleLoopCarriedDependencyCheck' :: ArrayAccessExpressions -> ArrayAccessExpressions -> [String] -> (Bool, [(Expr Anno, Expr Anno)]) -> VarName Anno -> (Bool, [(Expr Anno, Expr Anno)])
+simpleLoopCarriedDependencyCheck' reads writes loopVars (prevBool, prevPairs) var = (check_bool || prevBool, prevPairs ++ offendingPairs)
 			where 
-				writtenIdices = listRemoveDuplications (map (map applyGeneratedSrcSpans) (DMap.findWithDefault [] var writes))
+				writtenIndices = listRemoveDuplications (map (map applyGeneratedSrcSpans) (DMap.findWithDefault [] var writes))
 				readIndices = listRemoveDuplications (map (map applyGeneratedSrcSpans) (DMap.findWithDefault [] var reads))
-				allIndices = writtenIdices ++ readIndices
-
-				(check_bool, (offendingReads, offendingWrites)) = foldl (simpleLoopCarriedDependencyCheck'' readIndices) (prevBool, ([],[])) writtenIdices
+--				allIndices = writtenIndices ++ readIndices
+				(check_bool, (offendingReads, offendingWrites)) = foldl (simpleLoopCarriedDependencyCheck'' loopVars readIndices) (prevBool, ([],[])) writtenIndices
 				offendingPairs = map (\(read, write) -> (generateArrayVar var read, generateArrayVar var write)) (zip offendingReads offendingWrites)
 
-simpleLoopCarriedDependencyCheck'' :: [[Expr Anno]] -> (Bool, ([[Expr Anno]], [[Expr Anno]])) -> [Expr Anno] -> (Bool, ([[Expr Anno]], [[Expr Anno]]))
-simpleLoopCarriedDependencyCheck'' readIndiceList (prevBool, prevPairs) writtenIndices = foldl (\(accumBool, (accumReads, accumWrites)) readIndices -> if writtenIndices == readIndices 
-																								then (accumBool, (accumReads, accumWrites)) 
-																								else (True, (accumReads++[readIndices],accumWrites++[writtenIndices]) ))
-																							(prevBool, prevPairs) 
-																							readIndiceList
+-- writtenIndexSet: [Expr Anno], Expr is either Var p SrcSpan  [(VarName p, [Expr p])] or Con p SrcSpan String
+{-
+Instead of the == we need to
+    1/ find the index/indices of the current loop iterator(s) in the IndexSet, e.g. "j" is at position 0, "i" at position 1 or whatever
+    2/ compare *only* the indices at identified positions
+    
+indexSet =[i,j,...]
+
+This only works of the index is not part of an expression, TODO
+What we really need to do is find the var name in the expression
+extractVarNames ::  Expr p -> [VarName p]
+data VarName  p = VarName p Variable 
+
+index_expr_vars_per_index =  map extractVarNames readIndexSet  -- which gives [[VarName p]]
+index_expr_vars_per_index_pos = zip index_expr_vars_per_index_pos readPositions
+
+v(i) = v(3) 
+v(3) = v(i)
+
+So what I need is:
+    for every var in loopVars
+        for every expr in readIndexMap
+            given an expression in readIndexMap, does it contain a loop var? if so, get the index and get the entry from writtenIndexSet. If they are not identical there is a conflict
+                loopvar `elem` (map (\(Varname _ v) -> v) index_vars
+-}
+-- returns True if there is a conflict
+accessDependencyCheck :: [Expr Anno] -> [Expr Anno] -> [String] -> Bool
+accessDependencyCheck writtenIndexSet readIndexSet loopVars = let
+    readPositions = take (length readIndexSet) [0 .. ]
+    read_index_expr_vars_per_index =  map extractVarNames readIndexSet  -- which gives [[VarName p]]
+    read_index_expr_vars_per_index_pos = zip read_index_expr_vars_per_index readPositions
+    maybeConflictsPerPos =map (\index_vars_pos ->
+        let 
+            (index_vars,pos) = index_vars_pos    
+            maybeConflicts = map (\loopvar -> if ( loopvar  `elem` (map (\(VarName _ v) -> v) index_vars) ) 
+                    then
+                    -- OK, this loop var occurs in index pos on the LHS
+                       if (readIndexSet !! pos == writtenIndexSet !! pos) then True else False
+                    else 
+                    -- the loopvar is not used, return True (no conflict)
+                        True
+                ) loopVars
+        in  
+            foldl (&&) True maybeConflicts -- if all of them are true
+       ) read_index_expr_vars_per_index_pos
+  in
+      foldl (&&) True maybeConflictsPerPos
+      
+simpleLoopCarriedDependencyCheck'' :: [String] -> [[Expr Anno]] -> (Bool, ([[Expr Anno]], [[Expr Anno]])) -> [Expr Anno] -> (Bool, ([[Expr Anno]], [[Expr Anno]]))
+simpleLoopCarriedDependencyCheck'' loopVars readIndiceList (prevBool, prevPairs) writtenIndexSet = 
+    foldl (\(accumBool, (accumReads, accumWrites)) readIndexSet -> if (accessDependencyCheck writtenIndexSet readIndexSet loopVars) -- writtenIndexSet == readIndexSet
+																			then (accumBool, (accumReads, accumWrites)) 
+--																			else (True, (accumReads++[readIndexSet],accumWrites++[writtenIndexSet]) ))
+																			else (True, (accumReads++[warning readIndexSet ("R:"++(unwords (map outputExprFormatting readIndexSet)))],accumWrites++[warning writtenIndexSet ("W:"++(unwords ( map outputExprFormatting writtenIndexSet))++" V:"++(unwords loopVars))]) ))
+		  (prevBool, prevPairs) 
+		  readIndiceList
 
 loopCarriedDependency_iterative_prepareIterTable :: [VarName Anno] -> TupleTable -> [TupleTable]
 loopCarriedDependency_iterative_prepareIterTable [] iterTable = [iterTable]

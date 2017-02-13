@@ -85,7 +85,7 @@ main = do
     -- < STEP 4 : Parallelise the loops >
 	let (parallelisedSubroutines, parAnnotations) = foldl (paralleliseProgUnit_foldl parsedSubroutines) (DMap.empty, []) subroutineNames 				
 
-    -- < STEP 5 : >    
+    -- < STEP 5 : Try to fuse the parallelised loops as much as possible >    
 	let (combinedKernelSubroutines, combAnnotations) = foldl (combineKernelProgUnit_foldl loopFusionBound) (parallelisedSubroutines, []) subroutineNames
 
     -- < STEP 6a : create annotation listings >

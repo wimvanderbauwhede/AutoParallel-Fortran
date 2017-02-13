@@ -13,7 +13,7 @@ import Data.Char
 import Data.List
 import qualified Data.Map as DMap 
 
-import VarAccessAnalysis            (VarAccessAnalysis, isFunctionCall)
+import VarAccessAnalysis            (VarAccessAnalysis, isFunctionCall, f95IntrinsicFunctions)
 import VarDependencyAnalysis        (VarDependencyAnalysis, isIndirectlyDependentOn)
 import LanguageFortranTools
 import SubroutineTable                 (SubroutineTable, generateArgumentTranslation, subroutineTable_ast)
@@ -69,7 +69,7 @@ analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAna
 
                 readOperands = extractOperands expr2
                 readExprs = foldl (\accum item -> accum ++ (extractContainedVars item) ++ [item]) [] readOperands
-                -- readExprs = foldl (\accum item -> if isFunctionCall accessAnalysis item then accum ++ (extractContainedVars item) else accum ++ [item]) [] readOperands
+                -- readExprs = foldl (\accum item -> if isFunctionCall f95IntrinsicFunctions accessAnalysis item then accum ++ (extractContainedVars item) else accum ++ [item]) [] readOperands
                 prexistingReadExprs = filter (usesVarName_list prexistingVars) readExprs
 
 
@@ -152,7 +152,7 @@ analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingV
                 writtenExprs = extractOperands expr1
                 readOperands = listSubtract (extractOperands expr2) (expr1:(extractOperands expr1))
                 readExprs = foldl (\accum item -> accum ++ (extractContainedVars item)) [] readOperands
-                topLevelReadExprs = foldl (\accum item -> if isFunctionCall accessAnalysis item then accum ++ (extractContainedVars item) else accum ++ [item]) [] readOperands
+                topLevelReadExprs = foldl (\accum item -> if isFunctionCall f95IntrinsicFunctions accessAnalysis item then accum ++ (extractContainedVars item) else accum ++ [item]) [] readOperands
                 prexistingReadExprs = filter (usesVarName_list prexistingVars) readExprs
 
                 dependsOnSelfOnce = length (filter (\item -> applyGeneratedSrcSpans item == applyGeneratedSrcSpans expr1) topLevelReadExprs) == 1
@@ -216,7 +216,7 @@ analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis 
                                             True ->    extractContainedVars expr
                                             False -> extractOperands expr
                                     writtenOperands = filter (usesVarName_list loopWrites) operands
-                                    fnCall = isFunctionCall accessAnalysis expr
+                                    fnCall = isFunctionCall f95IntrinsicFunctions accessAnalysis expr
                                     nonTempWrittenOperands = filter(usesVarName_list nonTempVars) writtenOperands
 
                                     unusedIterMap = foldl (analyseLoopIteratorUsage_foldl nonTempWrittenOperands comment) DMap.empty loopVars
