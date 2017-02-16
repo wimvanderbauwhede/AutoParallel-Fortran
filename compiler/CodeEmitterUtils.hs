@@ -38,10 +38,12 @@ hostModuleName moduleName = moduleName ++ "_host"
 --	Function takes a list of lines from the original source and an object representing a range of line numbers and reproduces the original code
 --	in the range of those line numbers.
 extractOriginalCode :: String -> [String] -> SrcSpan -> String
-extractOriginalCode tabs originalLines src = orignalFileChunk
-					where 
+extractOriginalCode tabs originalLines src 
+    | length originalLines > 0 = let
 						((SrcLoc f lineStart columnStart), (SrcLoc _ lineEnd columnEnd)) = src
-						orignalFileChunk = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [lineStart..lineEnd]
+                 in
+						    foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [lineStart..lineEnd]
+    | otherwise = ""                        
 
 
 scalarPointerVar :: VarName Anno -> Expr Anno
@@ -110,8 +112,8 @@ adaptForReadScalarDecls allArgs (readDecls, writtenDecls, generalDecls)  = (fina
 			readDecls_noScalars = filter (\x -> (getDeclRank x) /= 0) readDecls -- listSubtract readDecls readScalars
 			generalDecls_noScalars = filter (\x -> (getDeclRank x) /= 0) generalDecls --listSubtract generalDecls generalScalars
 
-			readPtrs = map (declareScalarPointer_decl) readScalars
-			generalPtrs = map (declareScalarPointer_decl) generalScalars
+			readPtrs = map declareScalarPointer_decl readScalars
+			generalPtrs = map declareScalarPointer_decl generalScalars
 
 			ptrAssignments_list = map (\decl -> generatePtrScalarAssignment (extractAssigneeFromDecl decl)) (readScalars ++ generalScalars)
 			ptrAssignments_fseq = generateFSeq ptrAssignments_list

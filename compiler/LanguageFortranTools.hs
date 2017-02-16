@@ -398,9 +398,18 @@ removeAnnotations original = case original of
 combineAnnotations :: Anno -> Anno -> Anno
 combineAnnotations a b = combineMaps a b
 
-
+-- WV This checks if one of the varNames is used in the expression, where the expression can be a variable or a binary operation. 
+-- WV So unary operations are ignored, but worse, function call too, and it is not clear to me why array indices are ignored
+{-
+data Expr  p = 
+             | Var p SrcSpan  [(VarName p, [Expr p])]
+             | Bin p SrcSpan  (BinOp p) (Expr p) (Expr p)
+             | Unary p SrcSpan (UnaryOp p) (Expr p)
+             | ESeq p SrcSpan (Expr p) (Expr p)
+             | AssgExpr p SrcSpan Variable (Expr p) 
+-}
 usesVarName_list :: [VarName Anno] -> Expr Anno -> Bool
-usesVarName_list varNames (Var _ _ list) = foldl (||) False $ map (\(varname, exprs) -> elem varname varNames) list
+usesVarName_list varNames (Var _ _ list) = foldl (||) False $ map (\(varname, exprs) -> elem varname varNames) list -- so any variable used as an array index or argument of a function call is ignored!
 usesVarName_list varNames (Bin _ _ _ expr1 expr2) = (usesVarName_list varNames expr1) || (usesVarName_list varNames expr2)
 usesVarName_list varNames _ = False
 

@@ -243,14 +243,14 @@ data Expr  p = Con p SrcSpan String
              | Var p SrcSpan  [(VarName p, [Expr p])]
              | Bin p SrcSpan  (BinOp p) (Expr p) (Expr p)
              | Unary p SrcSpan (UnaryOp p) (Expr p)
-             | CallExpr p SrcSpan (Expr p) (ArgList p)
+             | CallExpr p SrcSpan (Expr p) (ArgList p) -- WV: UNUSED
              | NullExpr p SrcSpan
              | Null p SrcSpan 
              | ESeq p SrcSpan (Expr p) (Expr p)
              | Bound p SrcSpan (Expr p) (Expr p)
-             | Sqrt p SrcSpan (Expr p)
+             | Sqrt p SrcSpan (Expr p) -- WV: This is silly, should be handled either for all intrinsics or none
              | ArrayCon p SrcSpan [(Expr p)]
-             | AssgExpr p SrcSpan String (Expr p)
+             | AssgExpr p SrcSpan String (Expr p) -- WV: This is for use in e.g. parameter declarations I guess
                deriving (Show, Functor, Typeable ,Data, Eq)
 
 data BinOp   p = Plus p

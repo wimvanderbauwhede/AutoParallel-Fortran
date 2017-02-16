@@ -143,7 +143,7 @@ loopCarriedDependencyCheck codeSeg 	|	simpleFailure = case inDepthFailure of
 			where
 				assignments = everything (++) (mkQ [] extractAssignments) codeSeg
 				(reads, writes) = foldl' (extractArrayIndexReadWrite_foldl) (DMap.empty, DMap.empty) assignments
-				(loopIterTable_maybe, loopVars, loopStepTable) = constructLoopIterTable (Just(Empty)) DMap.empty [] (warning codeSeg (show codeSeg))
+				(loopIterTable_maybe, loopVars, loopStepTable) = constructLoopIterTable (Just(Empty)) DMap.empty [] codeSeg
 				loopVars' = extractLoopIters codeSeg -- WV
 
 				(loopIterTable_successfull, loopIterTable) = case loopIterTable_maybe of 
@@ -154,7 +154,7 @@ loopCarriedDependencyCheck codeSeg 	|	simpleFailure = case inDepthFailure of
 				offendingExprs = foldl (++) [] (map (loopCarriedDependency_varCheck loopStepTable loopIterTable loopVars (reads, writes)) writtenVars)
 				inDepthFailure = (not loopIterTable_successfull) || offendingExprs /= []
 
-				(simpleFailure, simpleOffenders) = simpleLoopCarriedDependencyCheck reads writes (warning loopVars' (show loopVars'))
+				(simpleFailure, simpleOffenders) = simpleLoopCarriedDependencyCheck reads writes loopVars'
 
 --	Given an AST representing a loop, this function will return a tuple containg a bool signifiying whether a loop carried dependency is possible
 --	and a list of pairs of expressions that cause the dependency. This version is different from the one above in that this one deals with
@@ -186,7 +186,7 @@ loopCarriedDependencyCheck_reductionWithIteration iteratingCodeSeg parallelCodeS
 
 				inDepthFailure = (not loopIterTable_successfull) || offendingExprs /= []
 
-				(simpleFailure, simpleOffenders) = simpleLoopCarriedDependencyCheck reads writes (warning loopVars' (show loopVars')) -- [VarName] -- data VarName  p = VarName p Variable
+				(simpleFailure, simpleOffenders) = simpleLoopCarriedDependencyCheck reads writes loopVars' -- [VarName] -- data VarName  p = VarName p Variable
 
 				successfullExprs = (offendingExprs ++ simpleOffenders)
 
@@ -228,9 +228,10 @@ So what I need is:
                 loopvar `elem` (map (\(Varname _ v) -> v) index_vars
 -}
 -- returns True if there is a conflict
-accessDependencyCheck :: [Expr Anno] -> [Expr Anno] -> [String] -> Bool
-accessDependencyCheck writtenIndexSet readIndexSet loopVars = let
-    readPositions = take (length readIndexSet) [0 .. ]
+accessDependencyCheckWV :: [Expr Anno] -> [Expr Anno] -> [String] -> Bool
+accessDependencyCheckWV writtenIndexSet readIndexSet loopVars = let
+    tlength = if ((length readIndexSet) == (length writtenIndexSet))  then length readIndexSet else error $ "LEN:"++(show (length readIndexSet))++"<>"++ (show (length writtenIndexSet))
+    readPositions = take tlength  [0 .. ]
     read_index_expr_vars_per_index =  map extractVarNames readIndexSet  -- which gives [[VarName p]]
     read_index_expr_vars_per_index_pos = zip read_index_expr_vars_per_index readPositions
     maybeConflictsPerPos =map (\index_vars_pos ->
@@ -239,7 +240,8 @@ accessDependencyCheck writtenIndexSet readIndexSet loopVars = let
             maybeConflicts = map (\loopvar -> if ( loopvar  `elem` (map (\(VarName _ v) -> v) index_vars) ) 
                     then
                     -- OK, this loop var occurs in index pos on the LHS
-                       if (readIndexSet !! pos == writtenIndexSet !! pos) then True else False
+                       if (pos > tlength-1) then error $ (show pos)++"<>"++(show tlength) else
+                           if (readIndexSet !! pos == writtenIndexSet !! pos) then True else False
                     else 
                     -- the loopvar is not used, return True (no conflict)
                         True
@@ -252,10 +254,9 @@ accessDependencyCheck writtenIndexSet readIndexSet loopVars = let
       
 simpleLoopCarriedDependencyCheck'' :: [String] -> [[Expr Anno]] -> (Bool, ([[Expr Anno]], [[Expr Anno]])) -> [Expr Anno] -> (Bool, ([[Expr Anno]], [[Expr Anno]]))
 simpleLoopCarriedDependencyCheck'' loopVars readIndiceList (prevBool, prevPairs) writtenIndexSet = 
-    foldl (\(accumBool, (accumReads, accumWrites)) readIndexSet -> if (accessDependencyCheck writtenIndexSet readIndexSet loopVars) -- writtenIndexSet == readIndexSet
+    foldl (\(accumBool, (accumReads, accumWrites)) readIndexSet -> if (accessDependencyCheckWV writtenIndexSet readIndexSet loopVars) -- writtenIndexSet == readIndexSet
 																			then (accumBool, (accumReads, accumWrites)) 
---																			else (True, (accumReads++[readIndexSet],accumWrites++[writtenIndexSet]) ))
-																			else (True, (accumReads++[warning readIndexSet ("R:"++(unwords (map outputExprFormatting readIndexSet)))],accumWrites++[warning writtenIndexSet ("W:"++(unwords ( map outputExprFormatting writtenIndexSet))++" V:"++(unwords loopVars))]) ))
+																			else (True, (accumReads++[readIndexSet],accumWrites++[writtenIndexSet]) ))
 		  (prevBool, prevPairs) 
 		  readIndiceList
 

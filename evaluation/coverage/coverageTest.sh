@@ -10,7 +10,7 @@ mkdir $RESULTDIR
 echo "---" >> "$RESULTFILE"
 date >> "$RESULTFILE"
 python "$CHANGESPY" "-h" >> "$RESULTFILE"
-for f in bondv1.f95
+for f in *.f95
 do
 	echo -e "Processing: $f"
     OUTFILE="${f%.*}_host.f95"

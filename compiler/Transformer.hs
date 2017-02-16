@@ -11,6 +11,8 @@ where
 --    a new table of subroutines, with fewer kernels hopefully, along with some strings to be output to the user. The strings in this case describe which (if any) loop fusions
 --    have been performed. These messages, as well as the parallelism errors mentioned previously, are only reported in verbose mode ('-v' command line argument)
 
+import Warning
+
 import Control.Monad
 import Data.Generics             (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
 import Language.Fortran.Parser
@@ -29,8 +31,10 @@ import VarDependencyAnalysis     (VarDependencyAnalysis, analyseDependencies, lo
 import LanguageFortranTools
 import ConstantFolding             (foldConstants)
 import LoopAnalysis             (analyseLoop_map, analyseLoop_reduce, getErrorAnnotations, getReductionVarNames, getReads, getWrites)
-
+-- import FortranSynthesiser ( produceCode_progUnit )
 {-
+
+This works on a full subroutine. So in principle after this is done, the var decls should be fine.
 data SubroutineTable = DMap.Map String (ProgUnit Anno, String)
 annoListing :: [(String, String)] : append (filename, parAnno) where parAnno contains all of the parallelising errors for this particular run of the compiler.
 -}    
@@ -42,10 +46,11 @@ paralleliseProgUnit_foldl originalTable (accumSubTable, annoListing) subName = (
             accessAnalysis = analyseAllVarAccess_progUnit progUnit
             parallelisedProgUnit = everywhere (mkT (paralleliseBlock filename originalTable accessAnalysis)) progUnitfoldedConstants
             
-            parAnno = compileAnnotationListing parallelisedProgUnit
+            parAnno = compileAnnotationListing parallelisedProgUnit -- (warning  (show parallelisedProgUnit)) -- (produceCode_progUnit DMap.empty DMap.empty ([],"") "kernel_module" "superkernel" [] parallelisedProgUnit)))
 
             newSubTable = DMap.insert subName (parallelisedProgUnit, filename) accumSubTable
 
+-- This one merges loops so again it should not touch the vardecls in the sub
 combineKernelProgUnit_foldl :: Maybe(Float) -> (SubroutineTable, [(String, String)]) -> String -> (SubroutineTable, [(String, String)])
 combineKernelProgUnit_foldl loopFusionBound (subTable, annoListing) subName = (newSubTable, annoListing ++ [(filename, combAnno)])
         where
