@@ -58,12 +58,12 @@ generateArgumentTranslationSubroutines :: SubroutineTable -> ArgumentTranslation
 generateArgumentTranslationSubroutines subTable argTable (Call anno src callExpr arglist) = DMap.insert subroutineName varNameReplacements argTable
 		where
 			varNameReplacements = generateArgumentTranslation subTable (Call anno src callExpr arglist)
-			subroutineName = varNameStr (head (extractVarNames callExpr))
+			subroutineName = varNameStr (head ((extractVarNames callExpr)++[VarName nullAnno "DUMMY9"]))   
 
 generateArgumentTranslation :: SubroutineTable -> Fortran Anno -> ArgumentTranslation
 generateArgumentTranslation subTable (Call anno src callExpr arglist) = varNameReplacements
 		where
-			subroutineName = varNameStr (head (extractVarNames callExpr))
+			subroutineName = varNameStr (head ((extractVarNames callExpr)++[VarName nullAnno "DUMMY10"]))
 			subroutineMaybe = DMap.lookup subroutineName subTable
 			(subroutineParsed, subroutine) = case subroutineMaybe of
 									Nothing -> (False, error "generateArgumentTranslationSubroutines")

@@ -108,7 +108,8 @@ main = do
 
     -- < STEP 8 : Emitter >
 	putStrLn $ compilerName ++ ": Synthesising OpenCL files"
-	emit outDirectory cppDFlags fixedForm fileCoordinated_parallelisedList fileCoordinated_bufferOptimisedPrograms argTranslations (newMainAst, mainFilename) [] [] -- < STEP 8 >
+    -- WV: added parsedSubroutines
+	emit outDirectory cppDFlags fixedForm fileCoordinated_parallelisedList fileCoordinated_bufferOptimisedPrograms argTranslations (newMainAst, mainFilename) [] [] parsedSubroutines -- < STEP 8 > 
 
 filenameFlag = "-modules"
 outDirectoryFlag = "-out"

@@ -96,7 +96,7 @@ getIndirectDependencies :: VarDependencyAnalysis -> VarName Anno -> [Expr Anno]
 getIndirectDependencies analysis queryVarname = getIndirectDependencies' analysis queryVarname []
 
 getIndirectDependencies' :: VarDependencyAnalysis -> VarName Anno -> [Expr Anno] -> [Expr Anno]
-getIndirectDependencies' analysis queryVarname previouslyProcessed = foldl (\accum item -> accum ++ getIndirectDependencies' analysis (head $ extractVarNames item)  newProcessed) newDependencies newDependencies
+getIndirectDependencies' analysis queryVarname previouslyProcessed = foldl (\accum item -> accum ++ getIndirectDependencies' analysis (head $ (extractVarNames item)++[VarName nullAnno "DUMMY1"])  newProcessed) newDependencies newDependencies
 											where
 												newDependencies = listSubtract (getDirectDependencies analysis queryVarname) previouslyProcessed
 												newProcessed = newDependencies ++ previouslyProcessed
@@ -108,14 +108,14 @@ isDirectlyDependentOn analysis potDependent potDependee = elem potDependee depen
 
 isIndirectlyDependentOn' :: VarDependencyAnalysis -> VarName Anno -> Expr Anno -> [Expr Anno] -> Bool
 isIndirectlyDependentOn' analysis potDependent potDependee previouslyProcessed 	|	isDirectlyDependentOn analysis potDependent potDependee = True
-																				|	otherwise = foldl (||) False $ map (\x -> isIndirectlyDependentOn' analysis (head $ extractVarNames x) potDependee newProcessed) newDependencies
+																				|	otherwise = foldl (||) False $ map (\x -> isIndirectlyDependentOn' analysis (head $ (extractVarNames x)++[VarName nullAnno "DUMMY2"]) potDependee newProcessed) newDependencies
 																						where
 																							newDependencies = listSubtract (getDirectDependencies analysis potDependent) previouslyProcessed
 																							newProcessed = newDependencies ++ previouslyProcessed
 
 isIndirectlyDependentOn :: VarDependencyAnalysis -> VarName Anno -> Expr Anno -> Bool
 isIndirectlyDependentOn analysis potDependent potDependee	|	isDirectlyDependentOn analysis potDependent potDependee = True
-															|	otherwise = foldl (||) False $ map (\x -> isIndirectlyDependentOn' analysis (head $ extractVarNames x) potDependee []) dependencies
+															|	otherwise = foldl (||) False $ map (\x -> isIndirectlyDependentOn' analysis (head $ (extractVarNames x)++[VarName nullAnno "DUMMY3"]) potDependee []) dependencies
 
 																	where 
 																		dependencies = getDirectDependencies analysis potDependent 
@@ -499,16 +499,16 @@ maskOnVarNameUsage :: VarName Anno -> [Expr Anno] -> [Expr Anno]
 maskOnVarNameUsage chosenVar exprs = map (\x -> if varNameUsed chosenVar x then applyGeneratedSrcSpans x else Null nullAnno nullSrcSpan) exprs
 
 varNameUsed :: VarName Anno -> Expr Anno -> Bool
-varNameUsed chosenVar expr = foldl (\accum item -> accum || (if isVar item then (head (extractVarNames item)) == chosenVar else False)) False (extractOperands expr)
+varNameUsed chosenVar expr = foldl (\accum item -> accum || (if isVar item then (head $ (extractVarNames item)++[VarName nullAnno "DUMMY6"]) == chosenVar else False)) False (extractOperands expr)
 
 extractArrayIndexReadWrite_foldl :: (ArrayAccessExpressions, ArrayAccessExpressions) -> Fortran Anno -> (ArrayAccessExpressions, ArrayAccessExpressions)
 extractArrayIndexReadWrite_foldl (reads, writes) (Assg _ _ expr1 expr2) = (newReads, newWrites)
 			where
 				readExpr_operands = filter (isVar) (extractOperands expr2)
-				readExpr_varNames = map (\x -> head $ extractVarNames x) readExpr_operands
+				readExpr_varNames = map (\x -> head $ (extractVarNames x)++[VarName nullAnno "DUMMY4"]) readExpr_operands
 				readExpr_indexExprs = map (extractContainedVars) readExpr_operands
 
-				writtenExpr_varName = head $ extractVarNames expr1
+				writtenExpr_varName = head $ (extractVarNames expr1)++[VarName nullAnno "DUMMY5"]
 				writtenExpr_indexExprs = extractContainedVars expr1
 
 				newReads = -- if writtenExpr_indexExprs /= []

@@ -33,6 +33,18 @@ import ConstantFolding             (foldConstants)
 import LoopAnalysis             (analyseLoop_map, analyseLoop_reduce, getErrorAnnotations, getReductionVarNames, getReads, getWrites)
 -- import FortranSynthesiser ( produceCode_progUnit )
 {-
+WV:
+paralleliseProgUnit_foldl
+    ConstantFolding::foldConstants
+    analyseAllVarAccess_progUnit
+    paralleliseBlock        
+        isolateAndParalleliseForLoops
+            paralleliseLoop
+                paralleliseLoop_map
+                    VarAccessAnalysis::getPrexistingVars
+                    LoopAnalysis::paralleliseLoop_map
+                paralleliseLoop_reduce
+                    LoopAnalysis::analyseLoop_reduce
 
 This works on a full subroutine. So in principle after this is done, the var decls should be fine.
 data SubroutineTable = DMap.Map String (ProgUnit Anno, String)
@@ -91,12 +103,12 @@ paralleliseLoop filename loopVars accessAnalysis subTable loop = transformedAst
 
                                     --    If the 'bool' variable for any of the attempts to parallelise is true, then parallism has been found
                                     --    and the new AST node is returned from this function, to be placed in the AST by the calling function.
-
+                                    --    
                                     mapAttempt = paralleliseLoop_map filename loop newLoopVars nonTempVars prexistingVars dependencies accessAnalysis subTable
                                     mapAttempt_bool = fst mapAttempt
                                     mapAttempt_ast = snd mapAttempt
 
-                                    reduceAttempt = paralleliseLoop_reduce filename mapAttempt_ast newLoopVars nonTempVars prexistingVars dependencies accessAnalysis
+                                    reduceAttempt = paralleliseLoop_reduce filename mapAttempt_ast newLoopVars nonTempVars prexistingVars  dependencies accessAnalysis
                                     reduceAttempt_bool = fst reduceAttempt
                                     reduceAttempt_ast = snd reduceAttempt
 
@@ -127,6 +139,7 @@ paralleliseLoop_map filename loop loopVarNames nonTempVars prexistingVars depend
                                     |    otherwise                    =    (False, appendAnnotationMap loop errors_map')
                                     where
                                         loopWrites = extractWrites_query loop
+-- WV: def:                                            analyseLoop_map  comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable codeSeg 
                                         loopAnalysis = analyseLoop_map "Cannot map: " [] loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable loop
 
                                         errors_map = getErrorAnnotations loopAnalysis

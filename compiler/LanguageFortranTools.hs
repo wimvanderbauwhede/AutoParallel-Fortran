@@ -4,8 +4,6 @@ module LanguageFortranTools where
 
 import Data.Generics                     (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
 import Data.Typeable
-import Language.Fortran.Parser  ( parse ) -- note: parse :: String -> Program (DMap.Map String [String]) -- 
-import Language.Fortran
 import Data.Char
 import Data.List
 import Data.Maybe
@@ -14,7 +12,12 @@ import System.Directory
 import Text.Read
 import qualified Data.Map as DMap
 
+
+import Language.Fortran.Parser  ( parse ) -- note: parse :: String -> Program (DMap.Map String [String]) -- 
+import Language.Fortran
+
 import PreProcessor                     (preProcess)
+import F95IntrinsicFunctions (f95IntrinsicFunctions)
 
 type Anno = DMap.Map (String) [String]
 
@@ -31,7 +34,7 @@ parseFile cppArgs fixedForm filename = do
     let dFlagList = if length cppArgs > 0
         then foldl (\accum item -> accum ++ ["-D", item]) [] cppArgs
         else  []
-    let dFlagStr = if length dFlagList == 0 then  "" else unwords dFlagList    
+    let dFlagStr = if length dFlagList == 0 then  "-D__GO_GO_7188__" else unwords dFlagList    
 --                                let dFlagList = foldl (\accum item -> accum ++ ["-D"++ item]) [] cppArgs
     inp <- readProcess "cpp"  ["-P",dFlagStr,filename] "" 
 --                                putStrLn filename
@@ -182,11 +185,24 @@ extractBufferReads' codeSeg = case codeSeg of
 --    Used to break down a tree of expressions that might form a calculation into a list of expressions for analysis.
 extractOperands :: (Typeable p, Data p) => Expr p -> [Expr p]
 extractOperands (Bin _ _ _ expr1 expr2) = extractOperands expr1 ++ extractOperands expr2
-extractOperands expr                     = [expr]
+extractOperands (Unary _ _ _ expr) = [expr]
+extractOperands (ESeq _ _ expr1 expr2) = extractOperands expr1 ++ extractOperands expr2
+extractOperands (Bound _ _ expr1 expr2) = extractOperands expr1 ++ extractOperands expr2
+extractOperands (ArrayCon _ _ es) = es
+-- extractOperands (Var _ _ varlst) = foldl (++) [] (map (\(vm, es) -> (foldl (++) [] (map extractOperands es))) varlst)
+extractOperands expr = [expr]
+
 
 --    Used to extract the name of a Var in a particular expression
-extractVarNames :: (Typeable p, Data p) => Expr p -> [VarName p]
-extractVarNames (Var _ _ lst) = map (\(x, _) -> x) lst
+--    WV: So if the Expr is not a VarName it returns an empty list. Otherwise it returns a list which I think only ever has 1 elt
+-- extractVarNames :: (Typeable p, Data p) => Expr p -> [VarName p]
+extractVarNames :: Expr Anno -> [VarName Anno]
+extractVarNames (Var _ _ lst) = let
+        vs' = filter (\((VarName _ v),args) -> not (v `elem` f95IntrinsicFunctions && length args > 0) ) lst
+        vs'' = map (\(x, _) -> x) vs'
+    in
+        vs'' -- if length vs'' == 0 then [VarName nullAnno "DUMMY"] else vs''
+        
 extractVarNames _ = []
 
 extractAllVarNames ::(Data (a Anno)) => a Anno -> [VarName Anno]
@@ -194,10 +210,21 @@ extractAllVarNames ::(Data (a Anno)) => a Anno -> [VarName Anno]
 extractAllVarNames = everything (++) (mkQ [] (extractVarNames))
 
 
---    Used to extract array index expressions and function call arguments.
+-- Used to extract array index expressions and function call arguments. 
+extractContainedVarsOLD :: (Typeable p, Data p) => Expr p -> [Expr p]
+extractContainedVarsOLD (Var _ _ lst) = foldl (\accumExprs (itemVar, itemExprs) -> accumExprs ++ itemExprs) [] lst
+extractContainedVarsOLD _ = []
+
 extractContainedVars :: (Typeable p, Data p) => Expr p -> [Expr p]
-extractContainedVars (Var _ _ lst) = foldl (\accumExprs (itemVar, itemExprs) -> accumExprs ++ itemExprs) [] lst
-extractContainedVars _ = []
+extractContainedVars expr = case expr of
+    (Var _ _ lst) ->
+        let
+            exprs = foldl (\accumExprs (itemVar, itemExprs) -> accumExprs ++ itemExprs) [] lst
+        in
+            foldl (++) exprs (map extractContainedVars exprs)
+    _ -> []
+
+
 
 extractContainedOperands :: (Typeable p, Data p) => Expr p -> [Expr p]
 extractContainedOperands expr =  foldl (\accum item -> accum ++ (extractOperands item)) [] containedVars

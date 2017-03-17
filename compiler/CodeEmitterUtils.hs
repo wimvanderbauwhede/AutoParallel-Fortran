@@ -116,13 +116,15 @@ adaptForReadScalarDecls allArgs (readDecls, writtenDecls, generalDecls)  = (fina
 			generalPtrs = map declareScalarPointer_decl generalScalars
 
 			ptrAssignments_list = map (\decl -> generatePtrScalarAssignment (extractAssigneeFromDecl decl)) (readScalars ++ generalScalars)
-			ptrAssignments_fseq = generateFSeq ptrAssignments_list
+            -- WV
+			--ptrAssignments_fseq = generateFSeq ptrAssignments_list
+			ptrAssignments_fseq = generateFSeq []
 
-			finalReadDecls = readDecls_noScalars ++ 
-								readScalars ++ readPtrs
-			finalGeneralDecls = generalDecls_noScalars ++ generalScalars ++ generalPtrs
-
-			allArgs_ptrAdaption = map (\var -> if elem var scalars then scalarPointerVarName var else var) allArgs
+			finalReadDecls = readDecls_noScalars ++ readScalars -- WV -- ++ readPtrs
+			finalGeneralDecls = generalDecls_noScalars ++ generalScalars -- WV -- ++ generalPtrs
+            -- WV
+			allArgs_ptrAdaption = allArgs -- map (\var -> if elem var scalars then scalarPointerVarName var else var) allArgs
+			-- allArgs_ptrAdaption = map (\var -> if elem var scalars then scalarPointerVarName var else var) allArgs
 
 addDimension :: Decl Anno -> Expr Anno -> Expr Anno -> Decl Anno
 addDimension decl start end = newDecl

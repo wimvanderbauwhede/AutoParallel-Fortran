@@ -29,8 +29,11 @@ instance Alts Alt1
 instance Alts Alt2
 instance Alts Alt3
 
---instance (OutputF (ProgUnit p) Alt1) => Show (ProgUnit p) where
+--instance (OutputF (Expr p) Alt1) => Show (Expr p) where
 --    show p = let ?variant = Alt1 in outputF p
+
+instance (OutputF (ProgUnit p) Alt1) => Show (ProgUnit p) where
+    show p = let ?variant = Alt1 in outputF p
 
 class OutputF t v where
     outputF :: (?variant :: v) => t -> String

@@ -7,14 +7,18 @@ where
 --    produce by those other modules is used to deteremine whether the conditions for parallelism are met. This module also handles
 --    producing parallelism errors that are later attached to AST nodes. 
 import Warning 
+import MiniPP (miniPP)
 
 import Data.Generics                 (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
 import Language.Fortran
+--import Language.Fortran.Pretty
+
 import Data.Char
 import Data.List
 import qualified Data.Map as DMap 
 
-import VarAccessAnalysis            (VarAccessAnalysis, isFunctionCall, f95IntrinsicFunctions)
+import F95IntrinsicFunctions (f95IntrinsicFunctions)
+import VarAccessAnalysis            (VarAccessAnalysis, isFunctionCall)
 import VarDependencyAnalysis        (VarDependencyAnalysis, isIndirectlyDependentOn)
 import LanguageFortranTools
 import SubroutineTable                 (SubroutineTable, generateArgumentTranslation, subroutineTable_ast)
@@ -45,18 +49,8 @@ getReads (_, _, reads, _) = reads
 getWrites :: AnalysisInfo -> [Expr Anno]
 getWrites (_, _, _, writes) = writes
 
-{-
-data Fortran  p = 
-                | FSeq p SrcSpan (Fortran p) (Fortran p)
--- Currently not implemented:                
-                | DoWhile  p SrcSpan (Expr p) (Fortran p)
-                | Allocate p SrcSpan (Expr p) (Expr p)
-                | Deallocate p SrcSpan [(Expr p)] (Expr p)
-                | Forall p SrcSpan ([(String,(Expr p),(Expr p),(Expr p))],(Expr p)) (Fortran p)
-                | Where p SrcSpan (Expr p) (Fortran p) (Maybe (Fortran p))
-                | PointerAssg p SrcSpan  (Expr p) (Expr p)
-                | SelectStmt p SrcSpan (Expr p) [((Expr p), (Fortran p))] (Maybe (Fortran p)) -- GAV ADDED    
--}
+             
+
 --    Function takes a list of loop variables and a possible parallel loop's AST and returns a string that details the reasons why the loop
 --    cannot be mapped. If the returned string is empty, the loop represents a possible parallel map
 analyseLoop_map :: String -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarAccessAnalysis -> VarDependencyAnalysis -> SubroutineTable -> Fortran Anno -> AnalysisInfo
@@ -74,19 +68,22 @@ analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAna
                                     Just else_fortran ->  recursiveCall else_fortran
                                     Nothing -> analysisInfoBaseCase
 
-        Assg _ srcspan lhsExpr rhsExpr -> foldl (combineAnalysisInfo) analysisInfoBaseCase [expr1Analysis,
+        Assg _ srcspan lhsExpr rhsExpr -> foldl (combineAnalysisInfo) analysisInfoBaseCase [lhsExprAnalysis,
                                                                                                 (DMap.empty,[],
-                                                                                                prexistingReadExprs,
+                                             --                                                   prexistingReadExprs,
+                                                                                                (warning prexistingReadExprs ("MAP: PRE-EXISTING READ EXPRS: "++(unwords (map miniPP prexistingReadExprs))++"\n") ),
                                                                                                 if isNonTempAssignment then [lhsExpr] else [])]
             where
-                expr1Analysis = (analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis lhsExpr)
+                lhsExprAnalysis = analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis lhsExpr
                 isNonTempAssignment = usesVarName_list nonTempVars lhsExpr
 
                 readOperands = extractOperands rhsExpr
+                -- WV: not sure if this should not be the same as for the Reduction
                 readExprs = foldl (\accum item -> accum ++ (extractContainedVars item) ++ [item]) [] readOperands
-                -- readExprs = foldl (\accum item -> if isFunctionCall f95IntrinsicFunctions accessAnalysis item then accum ++ (extractContainedVars item) else accum ++ [item]) [] readOperands
-                prexistingReadExprs = filter (usesVarName_list prexistingVars) readExprs
-
+                prexistingReadExprs = filter (usesVarName_list  (warning prexistingVars ("MAP: PRE-EXISTING VARS: "++(show (map (\(VarName _ v)->v) prexistingVars) )++"\nRHS FULL: "++(miniPP rhsExpr)++"\n"++ ("READ EXPRS: "++(show (map miniPP readExprs))++"\n")  ) )) readExprs 
+                -- prexistingReadExprs = filter (usesVarName_list  (warning prexistingVars ("PRE: "++(show (map (\(VarName _ v)->v) prexistingVars) )++"\nRHS: "++(miniPP rhsExpr)++"\n") ))  (warning readExprs ("READ OPS: "++(show (map miniPP readExprs))++"\n") )
+                --prexistingReadExprs = filter (usesVarName_list  prexistingVars) readExprs 
+                --
         For _ _ var e1 e2 e3 _ -> foldl combineAnalysisInfo analysisInfo childrenAnalysis  -- foldl combineAnalysisInfo analysisInfoBaseCase childrenAnalysis 
             where
                 childrenAnalysis = (gmapQ (mkQ analysisInfoBaseCase (analyseLoop_map comment (loopVars ++ [var]) loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable)) codeSeg)
@@ -168,7 +165,7 @@ analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingV
         Assg _ srcspan lhsExpr rhsExpr -> combineAnalysisInfo
                                             (errorMap3,
                                             if potentialReductionVar then [lhsExpr] else [],
-                                            prexistingReadExprs,
+                                            (warning prexistingReadExprs ("PRE-EXISTING READ EXPRS: "++(unwords (map miniPP prexistingReadExprs)))),
                                             if isNonTempAssignment then [lhsExpr] else []
                                             )                                            
                                             (if not potentialReductionVar then
@@ -177,9 +174,16 @@ analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingV
             where
                 writtenExprs = extractOperands lhsExpr
                 readOperands = listSubtract (extractOperands rhsExpr) (lhsExpr:(extractOperands lhsExpr))
-                readExprs = foldl (\accum item -> accum ++ (extractContainedVars item)) [] readOperands
+                -- WV so for some reason here only the array index expressions are extracted. I would think we need both.
+                -- WV so I concatenate readOperands with the array indices.
+                -- WV: TODO: if the read operand is an intrinsic function it should not be included I guess
+--                readExprsRec = foldl (\accum item -> accum ++ (extractContainedVarsRec item)) []  readOperands 
+                readExprs = readOperands ++ (foldl (\accum item -> accum ++ (extractContainedVars item)) [] (warning readOperands $ "READ OPS:"++(show $ map miniPP readOperands) ) )
+
                 topLevelReadExprs = foldl (\accum item -> if isFunctionCall f95IntrinsicFunctions accessAnalysis item then accum ++ (extractContainedVars item) else accum ++ [item]) [] readOperands
-                prexistingReadExprs = filter (usesVarName_list prexistingVars) readExprs
+                -- WV: what does prexistingVars actually mean? 
+--                prexistingReadExprs = filter (usesVarName_list prexistingVars) readExprs
+                prexistingReadExprs = filter (usesVarName_list  (warning prexistingVars ("REDUCTION: PRE-EXISTING: "++(show (map (\(VarName _ v)->v) prexistingVars) )++"\nRHS FULL: "++(miniPP rhsExpr)++"\n"++ ("READ EXPRS: "++(show (map miniPP readExprs))++"\n")  ) )) readExprs 
 
                 dependsOnSelfOnce = length (filter (\item -> applyGeneratedSrcSpans item == applyGeneratedSrcSpans lhsExpr) topLevelReadExprs) == 1
 
@@ -190,7 +194,7 @@ analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingV
                 associative = isAssociativeExpr lhsExpr rhsExpr
 
                 dependsOnSelf = referencedSelf || referencedInOuterConditionalStatement || dependsOnSelfOnce 
-                                    || (foldl (||) False $ map (\x -> isIndirectlyDependentOn dependencies (head $ extractVarNames x) x) writtenExprs)
+                                    || (foldl (||) False $ map (\x -> isIndirectlyDependentOn dependencies (head $ (extractVarNames x)++[VarName nullAnno "DUMMY8"]) x) writtenExprs)
                 
                 lhsExprAnalysis = (analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis lhsExpr)
                 rhsExprAnalysis = (analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis rhsExpr)

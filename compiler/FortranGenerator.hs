@@ -38,8 +38,8 @@ generateWorkGroupReduction_assgs reductionVars redIter (Assg _ _ expr1 expr2) 	|
 											Nothing -> case extractPrimaryReductionFunction expr1 expr2 of
 														"" -> []
 														funcName -> [Assg nullAnno nullSrcSpan localReductionVar (Var nullAnno nullSrcSpan [(VarName nullAnno funcName, [localReductionVar, localReductionArray])])]
-						localReductionArray = generateArrayVar (generateLocalReductionArray (head (extractVarNames expr1))) [(generateVar redIter)]
-						localReductionVar = generateVar (generateLocalReductionVar (head (extractVarNames expr1)))
+						localReductionArray = generateArrayVar (generateLocalReductionArray (head ((extractVarNames expr1)++[VarName nullAnno "DUMMY11"]) )) [(generateVar redIter)]
+						localReductionVar = generateVar (generateLocalReductionVar (head ((extractVarNames expr1) ++[VarName nullAnno "DUMMY12"]) ))
 generateWorkGroupReduction_assgs reductionVars redIter codeSeg = []
 
 generateFinalHostReduction :: [VarName Anno] -> VarName Anno -> Fortran Anno -> Fortran Anno
@@ -58,8 +58,8 @@ generateFinalHostReduction_assgs reductionVars redIter (Assg _ _ expr1 expr2) 	|
 											Nothing -> case extractPrimaryReductionFunction expr1 expr2 of
 														"" -> []
 														funcName -> [Assg nullAnno nullSrcSpan finalReductionVar (Var nullAnno nullSrcSpan [(VarName nullAnno funcName, [finalReductionVar, finalReductionArray])])]
-						finalReductionArray = generateArrayVar (generateGlobalReductionArray (head (extractVarNames expr1))) [(generateVar redIter)]
-						finalReductionVar = generateVar (head (extractVarNames expr1))
+						finalReductionArray = generateArrayVar (generateGlobalReductionArray (head ((extractVarNames expr1)++[VarName nullAnno "DUMMY13"]) )) [(generateVar redIter)]
+						finalReductionVar = generateVar (head ((extractVarNames expr1)++[VarName nullAnno "DUMMY14"]))
 generateFinalHostReduction_assgs reductionVars redIter codeSeg = []
 
 generateGlobalWorkItemsExpr :: [(VarName Anno, Expr Anno, Expr Anno, Expr Anno)] -> Expr Anno
