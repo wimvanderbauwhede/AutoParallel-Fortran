@@ -30,6 +30,7 @@ nullAnno :: Anno
 nullAnno = DMap.empty
 
 --    Taken from language-fortran example. Runs preprocessor on target source and then parses the result, returning an AST.
+parseFile :: [String] -> Bool -> String -> IO (Program Anno, [String])
 parseFile cppArgs fixedForm filename = do 
     let dFlagList = if length cppArgs > 0
         then foldl (\accum item -> accum ++ ["-D", item]) [] cppArgs
@@ -39,8 +40,14 @@ parseFile cppArgs fixedForm filename = do
     inp <- readProcess "cpp"  ["-P",dFlagStr,filename] "" 
 --                                putStrLn filename
     let
-        preproc_inp = preProcess fixedForm inp
-    return $ parse $ preproc_inp
+        contentLines = lines inp
+    exp_inp_lines <- inlineDeclsFromUsedModules contentLines                                
+    let 
+        inp' = unlines exp_inp_lines 
+    let
+        preproc_inp = preProcess fixedForm inp'
+        preproc_inp_lines = lines preproc_inp
+    return (parse  preproc_inp, preproc_inp_lines)
 
 cpp cppArgs fixedForm filename = do     
     let dFlagList = if length cppArgs > 0
@@ -48,6 +55,7 @@ cpp cppArgs fixedForm filename = do
         else  []
     let dFlagStr = if length dFlagList == 0 then  "" else unwords dFlagList    
     inp <- readProcess "cpp" ["-P",dFlagStr,filename] ""
+    let
     return $ preProcess fixedForm inp
 
 --    Used by analyseLoop_map to format the information on the position of a particular piece of code that is used as the information
@@ -100,18 +108,21 @@ listExtractSingleAppearances :: Eq a => [a] -> [a]
 listExtractSingleAppearances list = listExtractSingleAppearances' list list
 
 listExtractSingleAppearances' :: Eq a => [a] -> [a] -> [a]
-listExtractSingleAppearances' (x:[]) wholeList = if appearences == 1 then [x] else []
+listExtractSingleAppearances' (x:[]) wholeList = if appearances == 1 then [x] else []
         where
-            appearences = listCountAppearences x wholeList
-listExtractSingleAppearances' (x:tailList) wholeList = if appearences == 1 then [x] ++ listExtractSingleAppearances' tailList wholeList else listExtractSingleAppearances' tailList wholeList
+            appearances = listCountAppearances x wholeList
+listExtractSingleAppearances' (x:tailList) wholeList = if appearances == 1 then [x] ++ listExtractSingleAppearances' tailList wholeList else listExtractSingleAppearances' tailList wholeList
         where
-            appearences = listCountAppearences x wholeList
+            appearances = listCountAppearances x wholeList
 
-listCountAppearences :: Eq a => a -> [a] -> Int
-listCountAppearences value (x:[])     |     value == x = 1
+
+-- WV: this seems rather roundabout. Why not say 
+-- listCountAppearances value xs = length (filter (==value) xs)
+listCountAppearances :: Eq a => a -> [a] -> Int
+listCountAppearances value (x:[])     |     value == x = 1
                                     |     otherwise = 0
-listCountAppearences value (x:list)     |     value == x = 1 + listCountAppearences value list
-                                    |     otherwise = 0 + listCountAppearences value list
+listCountAppearances value (x:list)     |     value == x = 1 + listCountAppearances value list
+                                    |     otherwise = 0 + listCountAppearances value list
 
 --    Generic function that removes all duplicate elements from a list.
 listRemoveDuplications :: Eq a => [a] -> [a]
@@ -202,7 +213,6 @@ extractVarNames (Var _ _ lst) = let
         vs'' = map (\(x, _) -> x) vs'
     in
         vs'' -- if length vs'' == 0 then [VarName nullAnno "DUMMY"] else vs''
-        
 extractVarNames _ = []
 
 extractAllVarNames ::(Data (a Anno)) => a Anno -> [VarName Anno]
@@ -211,17 +221,17 @@ extractAllVarNames = everything (++) (mkQ [] (extractVarNames))
 
 
 -- Used to extract array index expressions and function call arguments. 
-extractContainedVarsOLD :: (Typeable p, Data p) => Expr p -> [Expr p]
-extractContainedVarsOLD (Var _ _ lst) = foldl (\accumExprs (itemVar, itemExprs) -> accumExprs ++ itemExprs) [] lst
-extractContainedVarsOLD _ = []
-
 extractContainedVars :: (Typeable p, Data p) => Expr p -> [Expr p]
-extractContainedVars expr = case expr of
+extractContainedVars (Var _ _ lst) = foldl (\accumExprs (itemVar, itemExprs) -> accumExprs ++ itemExprs) [] lst
+extractContainedVars _ = []
+-- WV 
+extractContainedVarsWV :: (Typeable p, Data p) => Expr p -> [Expr p]
+extractContainedVarsWV expr = case expr of
     (Var _ _ lst) ->
         let
             exprs = foldl (\accumExprs (itemVar, itemExprs) -> accumExprs ++ itemExprs) [] lst
         in
-            foldl (++) exprs (map extractContainedVars exprs)
+            foldl (++) exprs (map extractContainedVarsWV exprs)
     _ -> []
 
 
@@ -426,7 +436,7 @@ combineAnnotations :: Anno -> Anno -> Anno
 combineAnnotations a b = combineMaps a b
 
 -- WV This checks if one of the varNames is used in the expression, where the expression can be a variable or a binary operation. 
--- WV So unary operations are ignored, but worse, function call too, and it is not clear to me why array indices are ignored
+-- WV So unary operations are ignored, but worse, function calls too, and it is not clear to me why array indices are ignored
 {-
 data Expr  p = 
              | Var p SrcSpan  [(VarName p, [Expr p])]
@@ -703,7 +713,7 @@ evaluateExpr_type vt (Bin _ _ binOp expr1 expr2) = case binOp of
                                                                                         Just (Integer _) -> maybeBinOp_integral expr1_eval expr2_eval (quot)
                                                                                         Nothing -> Nothing
                                                                 Nothing -> Nothing
-                                                Power _ ->     maybeBinOp_integral expr1_eval expr2_eval (^)
+                                                Power _ ->     maybeBinOp_float expr1_eval expr2_eval (**) -- WV: was ^
                                                 _ -> Nothing
             where
                 expr1_eval = evaluateExpr_type vt expr1
@@ -749,6 +759,15 @@ deleteValueFromTable var table = DMap.delete (varNameStr var) table
 --                                             Just float1 -> case maybeFloat2 of
 --                                                             Nothing -> 0.0
 --                                                             Just float2 -> fromIntegral (quot (round float1) (round float2)) :: Float
+
+--maybeBinOp_float :: Floating a => Maybe(Float, BaseType Anno) -> Maybe(Float, BaseType Anno) -> (a -> a -> a) -> Maybe(Float, BaseType Anno)
+maybeBinOp_float maybeFloat1 maybeFloat2 op = resultValue
+            where
+                resultValue = case maybeFloat1 of
+                                            Nothing -> Nothing
+                                            Just (float1, typ1) -> case maybeFloat2 of
+                                                            Nothing -> Nothing
+                                                            Just (float2, typ2) -> Just (op float1 float2, Integer nullAnno)
 
 maybeBinOp_integral :: Integral a => Maybe(Float, BaseType Anno) -> Maybe(Float, BaseType Anno) -> (a -> a -> a) -> Maybe(Float, BaseType Anno)
 maybeBinOp_integral maybeFloat1 maybeFloat2 op = resultValue
@@ -806,3 +825,62 @@ commentSeparator' (x:xs) (sep:seps) = [x] ++ (commentSeparator' xs seps)
 extractIndent :: String -> String
 extractIndent (' ':str) = " " ++ extractIndent str
 extractIndent _ = ""
+
+-- WV
+split :: Char -> [Char] -> [[Char]]
+split delim str = map (\w -> map (\c -> if c==delim then ' ' else c) w) $ words (map (\c-> (if delim==c then ' ' else if c==' ' then delim else c)) str)
+
+-- WV 
+findDeclLine :: String -> Bool
+findDeclLine line  =
+        let 
+            chunks = words line -- splits on spaces 
+        in 
+                if length chunks < 2 then False else chunks !! (length chunks - 2) == "::"
+
+-- WV
+isUseDecl line = let
+    chunks = filter (not . null) $ words line
+    in
+        if ((not (null chunks)) && (head chunks == "use")) then True else False -- init (tail (chunks !! 1)) else ""
+
+-- WV This is weak because I assume the module name is the file name. I should at least try and remove "module_" from the name TODO
+-- WV But even then, this should only really be done for modules that only contain declarations, so I should check that TODO
+readUsedModuleDecls :: String -> IO [String]
+readUsedModuleDecls line = 
+    let
+        chunks = filter (not . null) $ words line
+        module_name_maybe_commment = chunks !! 1
+        module_name_chunks = split '!' module_name_maybe_commment
+        module_name = module_name_chunks !! 0
+--        module_name = chunks !! 1
+    in
+        do
+            test <- doesFileExist (module_name ++ ".f95")
+            module_content_str <- if test
+                then
+                        readFile (module_name ++ ".f95")
+                else
+                        return ""
+            let module_lines = lines module_content_str
+            let decl_lines = filter findDeclLine module_lines
+--            mapM print decl_lines
+            return decl_lines
+
+-- WV            
+inlineDeclsFromUsedModules contentLines = do
+                expandedContentLines <- mapM (\line -> if (isUseDecl line) then (readUsedModuleDecls line) else return [ line ]) contentLines
+                let expandedContentLines' = foldl (++) [] expandedContentLines
+                return expandedContentLines'
+
+-- paralleliseProgUnit_foldl :: SubroutineTable -> (SubroutineTable, [(String, String)]) -> String -> (SubroutineTable, [(String, String)])
+-- paralleliseProgUnit :: SubroutineTable ->  [(String, String)] -> (SubroutineTable, [(String, String)])
+
+-- stateful_pass :: SubroutineTable -> SubName -> Action -> a -> [String] -> (SubroutineTable, a)
+-- type Action = b -> a -> (b, a)
+--statefullPass :: (SubroutineTable -> a -> (SubroutineTable,a)) -> a -> SubroutineTable -> (SubroutineTable,a)
+--statefullPass statefull_action state subtable = statefull_action subtable state
+
+
+
+

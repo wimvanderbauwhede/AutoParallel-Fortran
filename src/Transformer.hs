@@ -24,7 +24,7 @@ import System.Process
 import System.Directory
 import qualified Data.Map as DMap 
 
-import SubroutineTable            (SubroutineTable)
+import SubroutineTable            (SubroutineTable,SubRec(..))
 import CombineKernels             (combineKernelsProgUnit)
 import VarAccessAnalysis         (VarAccessAnalysis, analyseAllVarAccess_progUnit, getNonTempVars, getPrexistingVars, getValueAtSrcSpan)
 import VarDependencyAnalysis     (VarDependencyAnalysis, analyseDependencies, loopCarriedDependencyCheck, loopCarriedDependencyCheck_reductionWithIteration)
@@ -53,23 +53,25 @@ annoListing :: [(String, String)] : append (filename, parAnno) where parAnno con
 paralleliseProgUnit_foldl :: SubroutineTable -> (SubroutineTable, [(String, String)]) -> String -> (SubroutineTable, [(String, String)])
 paralleliseProgUnit_foldl originalTable (accumSubTable, annoListing) subName = (newSubTable, annoListing ++ [(filename, parAnno)])
         where
-            (progUnit, filename) = DMap.findWithDefault (error "paralleliseProgUnit_foldl") subName originalTable
+            subrec = DMap.findWithDefault (error "paralleliseProgUnit_foldl") subName originalTable
+            progUnit = subAst subrec
+            filename = subSrcFile subrec
             progUnitfoldedConstants = foldConstants progUnit
             accessAnalysis = analyseAllVarAccess_progUnit progUnit
             parallelisedProgUnit = everywhere (mkT (paralleliseBlock filename originalTable accessAnalysis)) progUnitfoldedConstants
-            
             parAnno = compileAnnotationListing parallelisedProgUnit -- (warning  (show parallelisedProgUnit)) -- (produceCode_progUnit DMap.empty DMap.empty ([],"") "kernel_module" "superkernel" [] parallelisedProgUnit)))
-
-            newSubTable = DMap.insert subName (parallelisedProgUnit, filename) accumSubTable
+            newSubTable = DMap.insert subName (MkSubRec parallelisedProgUnit filename []) accumSubTable
 
 -- This one merges loops so again it should not touch the vardecls in the sub
 combineKernelProgUnit_foldl :: Maybe(Float) -> (SubroutineTable, [(String, String)]) -> String -> (SubroutineTable, [(String, String)])
 combineKernelProgUnit_foldl loopFusionBound (subTable, annoListing) subName = (newSubTable, annoListing ++ [(filename, combAnno)])
         where
-            (progUnit, filename) = DMap.findWithDefault (error "paralleliseProgUnit_foldl") subName subTable
+            subrec = DMap.findWithDefault (error "paralleliseProgUnit_foldl") subName subTable
+            progUnit = subAst subrec
+            filename = subSrcFile subrec
             combinedProgUnit = combineKernelsProgUnit loopFusionBound (removeAllAnnotations progUnit)
             combAnno = compileAnnotationListing combinedProgUnit
-            newSubTable = DMap.insert subName (combinedProgUnit, filename) subTable
+            newSubTable = DMap.insert subName (MkSubRec combinedProgUnit filename []) subTable
 
 --    This function is called using generics so that every 'Block' is traversed. This step is necessary to be able to reach the first 'Fortran'
 --    node. From here, the first call to 'isolateAndParalleliseForLoops' is made (again with generics) which recursively traverses the 'Fortran' nodes to
@@ -115,6 +117,7 @@ paralleliseLoop filename loopVars accessAnalysis subTable loop = transformedAst
                                     reduceWithOuterIterationAttempt = paralleliseLoop_reduceWithOuterIteration filename reduceAttempt_ast Nothing newLoopVars nonTempVars prexistingVars dependencies accessAnalysis
                                     reduceWithOuterIterationAttempt_bool = fst reduceWithOuterIterationAttempt
                                     reduceWithOuterIterationAttempt_ast = snd reduceWithOuterIterationAttempt
+                                    -- WV: if all these fail we should move the loop to the OpenCL device anyway, using a new OpenCLSeq node
 
                                     transformedAst = case mapAttempt_bool of
                                         True    ->  mapAttempt_ast

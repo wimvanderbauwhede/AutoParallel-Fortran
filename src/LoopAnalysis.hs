@@ -70,8 +70,8 @@ analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAna
 
         Assg _ srcspan lhsExpr rhsExpr -> foldl (combineAnalysisInfo) analysisInfoBaseCase [lhsExprAnalysis,
                                                                                                 (DMap.empty,[],
-                                             --                                                   prexistingReadExprs,
-                                                                                                (warning prexistingReadExprs ("MAP: PRE-EXISTING READ EXPRS: "++(unwords (map miniPP prexistingReadExprs))++"\n") ),
+                                                                                                prexistingReadExprs,
+--                                                                                                (warning prexistingReadExprs ("MAP: PRE-EXISTING READ EXPRS: "++(unwords (map miniPP prexistingReadExprs))++"\n") ),
                                                                                                 if isNonTempAssignment then [lhsExpr] else [])]
             where
                 lhsExprAnalysis = analyseLoopIteratorUsage comment loopVars loopWrites nonTempVars accessAnalysis lhsExpr
@@ -80,7 +80,8 @@ analyseLoop_map comment loopVars loopWrites nonTempVars prexistingVars accessAna
                 readOperands = extractOperands rhsExpr
                 -- WV: not sure if this should not be the same as for the Reduction
                 readExprs = foldl (\accum item -> accum ++ (extractContainedVars item) ++ [item]) [] readOperands
-                prexistingReadExprs = filter (usesVarName_list  (warning prexistingVars ("MAP: PRE-EXISTING VARS: "++(show (map (\(VarName _ v)->v) prexistingVars) )++"\nRHS FULL: "++(miniPP rhsExpr)++"\n"++ ("READ EXPRS: "++(show (map miniPP readExprs))++"\n")  ) )) readExprs 
+                prexistingReadExprs = filter (usesVarName_list prexistingVars ) readExprs
+--                prexistingReadExprs = filter (usesVarName_list  (warning prexistingVars ("MAP: PRE-EXISTING VARS: "++(show (map (\(VarName _ v)->v) prexistingVars) )++"\nRHS FULL: "++(miniPP rhsExpr)++"\n"++ ("READ EXPRS: "++(show (map miniPP readExprs))++"\n")  ) )) readExprs 
                 -- prexistingReadExprs = filter (usesVarName_list  (warning prexistingVars ("PRE: "++(show (map (\(VarName _ v)->v) prexistingVars) )++"\nRHS: "++(miniPP rhsExpr)++"\n") ))  (warning readExprs ("READ OPS: "++(show (map miniPP readExprs))++"\n") )
                 --prexistingReadExprs = filter (usesVarName_list  prexistingVars) readExprs 
                 --
@@ -165,7 +166,8 @@ analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingV
         Assg _ srcspan lhsExpr rhsExpr -> combineAnalysisInfo
                                             (errorMap3,
                                             if potentialReductionVar then [lhsExpr] else [],
-                                            (warning prexistingReadExprs ("PRE-EXISTING READ EXPRS: "++(unwords (map miniPP prexistingReadExprs)))),
+                                            -- (warning prexistingReadExprs ("PRE-EXISTING READ EXPRS: "++(unwords (map miniPP prexistingReadExprs)))),
+                                            prexistingReadExprs, 
                                             if isNonTempAssignment then [lhsExpr] else []
                                             )                                            
                                             (if not potentialReductionVar then
@@ -178,12 +180,13 @@ analyseLoop_reduce comment condExprs loopVars loopWrites nonTempVars prexistingV
                 -- WV so I concatenate readOperands with the array indices.
                 -- WV: TODO: if the read operand is an intrinsic function it should not be included I guess
 --                readExprsRec = foldl (\accum item -> accum ++ (extractContainedVarsRec item)) []  readOperands 
-                readExprs = readOperands ++ (foldl (\accum item -> accum ++ (extractContainedVars item)) [] (warning readOperands $ "READ OPS:"++(show $ map miniPP readOperands) ) )
+                readExprs = readOperands ++ (foldl (\accum item -> accum ++ (extractContainedVars item)) [] readOperands)
+--                readExprs = readOperands ++ (foldl (\accum item -> accum ++ (extractContainedVars item)) [] (warning readOperands $ "READ OPS:"++(show $ map miniPP readOperands) ) )
 
                 topLevelReadExprs = foldl (\accum item -> if isFunctionCall f95IntrinsicFunctions accessAnalysis item then accum ++ (extractContainedVars item) else accum ++ [item]) [] readOperands
                 -- WV: what does prexistingVars actually mean? 
---                prexistingReadExprs = filter (usesVarName_list prexistingVars) readExprs
-                prexistingReadExprs = filter (usesVarName_list  (warning prexistingVars ("REDUCTION: PRE-EXISTING: "++(show (map (\(VarName _ v)->v) prexistingVars) )++"\nRHS FULL: "++(miniPP rhsExpr)++"\n"++ ("READ EXPRS: "++(show (map miniPP readExprs))++"\n")  ) )) readExprs 
+                prexistingReadExprs = filter (usesVarName_list prexistingVars) readExprs
+--                prexistingReadExprs = filter (usesVarName_list  (warning prexistingVars ("REDUCTION: PRE-EXISTING: "++(show (map (\(VarName _ v)->v) prexistingVars) )++"\nRHS FULL: "++(miniPP rhsExpr)++"\n"++ ("READ EXPRS: "++(show (map miniPP readExprs))++"\n")  ) )) readExprs 
 
                 dependsOnSelfOnce = length (filter (\item -> applyGeneratedSrcSpans item == applyGeneratedSrcSpans lhsExpr) topLevelReadExprs) == 1
 

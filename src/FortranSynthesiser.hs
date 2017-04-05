@@ -25,6 +25,7 @@ synthesiseKernels
     synthesiseOpenCLMap
 -}    
 import Warning 
+import System.Directory
 import MiniPP (miniPPF, miniPPD)
 
 import Data.Generics                     (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
@@ -37,7 +38,7 @@ import qualified Data.Map as DMap
 import FortranGenerator -- WV: TODO: add the import list here
 import CodeEmitterUtils
 import LanguageFortranTools
-import SubroutineTable                     (ArgumentTranslation, ArgumentTranslationSubroutines, emptyArgumentTranslation, getSubroutineArgumentTranslation, translateArguments,
+import SubroutineTable                     (SubRec(..),ArgumentTranslation, SubroutineArgumentTranslationMap, emptyArgumentTranslation, getSubroutineArgumentTranslation, translateArguments,
                                         extractSubroutines, extractProgUnitName)
 
 
@@ -47,7 +48,11 @@ readOriginalFileLines :: [String] -> Bool -> String -> IO ([String])
 readOriginalFileLines cppDFlags fixedForm filename = do
                 content <- cpp cppDFlags fixedForm filename
                 let contentLines = lines content
-                return contentLines
+                -- so here I have to go through these lines, and find 'use' declarations, and substitute these 
+                --let 
+--                expandedContentLines <- foldlM (++) [] $ 
+                inlineDeclsFromUsedModules contentLines 
+
 
 defaultFilename :: [String] -> String
 defaultFilename (x:[]) = "par_" ++ x
@@ -81,13 +86,13 @@ synthesiseSuperKernelName originalFilenames = base ++ suffix
                                     '_' -> "superkernel"
                                     _ -> "_superkernel")
 
-produceCode_prog :: KernelArgsIndexMap -> ArgumentTranslationSubroutines -> [String] -> Bool -> String -> String -> (Program Anno, String) -> IO(String)
+produceCode_prog :: KernelArgsIndexMap -> SubroutineArgumentTranslationMap -> [String] -> Bool -> String -> String -> (Program Anno, String) -> IO(String)
 produceCode_prog allKernelArgsMap argTranslation cppDFlags fixedForm kernelModuleName superKernelName (prog, filename) = do
                     originalLines <- readOriginalFileLines cppDFlags fixedForm filename
                     let result = foldl (\accum item -> accum ++ produceCode_progUnit allKernelArgsMap emptyArgumentTranslation (prog, filename) kernelModuleName superKernelName originalLines item) "" prog
                     return result
 
-produceCode_progUnit :: KernelArgsIndexMap -> ArgumentTranslationSubroutines -> (Program Anno, String) -> String -> String -> [String] -> ProgUnit Anno -> String
+produceCode_progUnit :: KernelArgsIndexMap -> SubroutineArgumentTranslationMap -> (Program Anno, String) -> String -> String -> [String] -> ProgUnit Anno -> String
 produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines (Main _ src _ _ block progUnits) =    
     if (length originalLines == 0) 
         then
@@ -264,7 +269,9 @@ synthesiseInitModule moduleName superKernelName programs allKernelArgsMap kernel
                                             ++    twoTab ++ "use oclWrapper\n"
                                             ++    usesString
                                             ++    kernelInitialisationStrs
+                                            ++    "! declarations\n" 
                                             ++    declarationsStr
+                                            ++    "! buffer declarations\n" 
                                             ++    bufferDeclarationStatements
                                             ++    sizeDeclarations_str ++ "\n"
 
@@ -303,6 +310,7 @@ synthesiseInitModule moduleName superKernelName programs allKernelArgsMap kernel
 
                     kernelDeclarations = map (\(kernel_ast, prog_ast) -> generateKernelDeclarations prog_ast kernel_ast) kernelAsts
                     (readDecls, writtenDecls, generalDecls) =  foldl (\(accum_r, accum_w, accum_g) (r, w, g) -> (accum_r ++ r, accum_w ++ w, accum_g ++ g)) ([],[],[]) kernelDeclarations
+                    -- WV this is not correct, there are way too many because none of the local scalar variables needs to be here!
                     declarations = foldl (collectDecls) [] (readDecls ++ writtenDecls ++ generalDecls ++ [statePtrDecl])
                     declarations_noIntent = map (removeIntentFromDecl) declarations
                     declarationsStr = foldl (\accum item -> accum ++ synthesiseDecl twoTab item) "" declarations_noIntent
@@ -350,15 +358,15 @@ synthesiseSuperKernel :: String -> String -> String -> [(Program Anno, String)] 
 synthesiseSuperKernel moduleName tabs name programs [] = ("", DMap.empty)
 synthesiseSuperKernel moduleName tabs name programs kernels = if allKernelArgs == [] then error "synthesiseSuperKernel" else (superKernel, allKernelArgsMap)
                 where
-                    programAsts = map (fst) programs
+                    programAsts = map fst programs
                     kernelAstLists = map (extractKernels) programAsts
 
                     extractedUses = foldl (\accum prog -> listConcatUnique accum (everything (++) (mkQ [] getUses) prog)) [] programAsts
                     useStatements = "use " ++ initModuleName moduleName ++ "\n" 
                                         ++ (foldl (\accum item -> synthesiseUse ([], "") "" [] item) "" extractedUses)
 
-                    kernelNames = map (snd) kernels
-                    stateNames = map (generateStateName) kernelNames
+                    kernelNames = map snd kernels
+                    stateNames = map generateStateName kernelNames
                     stateDefinitions = synthesiseStateDefinitions (zip kernelNames stateNames) 0
 
                     kernelAsts = foldl (++) [] (map (\(k_asts, p_ast) -> map (\a -> (a, p_ast)) k_asts) (zip kernelAstLists programAsts))
@@ -387,7 +395,7 @@ synthesiseSuperKernel moduleName tabs name programs kernels = if allKernelArgs =
                     superKernel = superKernel_header ++ useStatements ++ declarationsStr ++ "\n" ++ stateVarDeclStr ++ statePointerDeclStr ++ stateDefinitions ++ stateAssignment ++ superKernel_body ++ superKernel_footer
 
 synthesiseKernelCaseAlternative :: String -> String -> String -> [VarName Anno] -> String
-synthesiseKernelCaseAlternative tabs state kernelName [] = error "synthesiseKernelCaseAlternative"
+synthesiseKernelCaseAlternative tabs state kernelName [] = "\n! Skipped call to "++kernelName++", has no args\n" -- error $ "synthesiseKernelCaseAlternative: no arguments for "++kernelName
 synthesiseKernelCaseAlternative tabs state kernelName args =  tabs ++ "case (" ++ state ++ ")\n" ++ tabs ++ outputTab ++ "call " ++ kernelName ++ "(" ++ argsString ++ ")" ++ "\n" 
                 where
                     argsString = foldl (\accum item -> accum ++ "," ++ (varNameStr item)) (varNameStr $ head args) (tail args)
@@ -443,7 +451,7 @@ synthesiseSetOclArg tabs allKernelArgsMap (Decl anno src lst typ) = case baseTyp
                                                         _ -> ""
         where
             assigneeName = extractAssigneeFromDecl (Decl anno src lst typ)
-            kernelArgIndex_C = (DMap.findWithDefault (error "synthesiseSetOclArg: arg doesn't exist in KernelArgsIndexMap") assigneeName allKernelArgsMap) - 1
+            kernelArgIndex_C = (DMap.findWithDefault (error ("synthesiseSetOclArg: arg "++(show assigneeName)++" doesn't exist in KernelArgsIndexMap")) assigneeName allKernelArgsMap) - 1
 
             baseType = extractBaseType typ
 
@@ -725,7 +733,7 @@ synthesiseOpenCLMap inTabs originalLines orig_ast programInfo (OpenCLMap anno sr
                                                             [] -> ""
                                                             args -> foldl (\accum item -> accum ++ "," ++ varNameStr item) (varNameStr (head args)) (tail args)
 
-                                                readDeclStr = foldl (\accum item -> accum ++ synthesiseDecl (tabs) item) "" (readDecls)
+                                                readDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" readDecls
                                                 writtenDeclStr = foldl (\accum item -> accum ++ synthesiseDecl (tabs) item) "" (writtenDecls)
                                                 generalDeclStr = foldl (\accum item -> accum ++ synthesiseDecl (tabs) item) "" (generalDecls)
 
@@ -750,21 +758,23 @@ getLocalDeclStrs :: [VarName Anno] -> (Decl Anno, Fortran Anno) -> [String] -> S
 getLocalDeclStrs allArgs orig_decls_stmts originalLines tabs kernelName =
     let
                                                 allArgs_strs = map varNameStr allArgs
-                                                allVars' =  extractAllVarNames (warning fortran ("\n! KERNEL: "++kernelName++"\n"++(miniPPF fortran)))
+                                                allVars' =  extractAllVarNames fortran -- (warning fortran ("\n! KERNEL: "++kernelName++"\n"++(miniPPF fortran)))
                                                 allVars = Data.Set.toList $ Data.Set.fromList allVars' -- this is a trick to remove duplicates
                                                 allVars_strs = map varNameStr allVars
                                                 (decls,fortran) = orig_decls_stmts
                                                 localVars_strs = filter (\var -> not (var `elem` allArgs_strs)) allVars_strs -- so here u0 and test are missing from allVars AND from allArgs
-                                                localVarsStr =  "! Local vars: "++ ( intercalate "," localVars_strs) ++"\n"++(miniPPD decls);
+                                                localVarsStr =  "! Local vars: "++ ( intercalate "," localVars_strs) ++"\n" -- ++(miniPPD decls);
                                                 -- so now I need to get the corresponding declarations from the original subroutine
                                                 -- FIXME: GD's code assumes only one subroutine per filename and also that the sub and the file have the same name! getModuleName just removes the extension!
                                                 -- TODO: GD does not emit code from the AST, rather the uses the original lines as text. I do the same, but its UGLY!
                                                 -- now get the declarations, so we get them from the prog
                                                 -- If we assume that the code went through rf4a first, we can do this:
                                                 origDeclLines =  filter findDeclLine originalLines
+--                                                origDeclLines = lines $ miniPPD decls
                                                 matchingOrigDeclLines = map (\var_name -> unlines $ filter (matchVarNameInDecl var_name) origDeclLines) localVars_strs
                                                 matchingOrigDeclLinesNoIntent = map removeIntent matchingOrigDeclLines                                                
                                                 localDeclStrs = unlines (map (\l->tabs++l) matchingOrigDeclLinesNoIntent)
+--                                                localDeclStrs = "\n! BEGIN local decsl !\n"++(miniPPD decls)++"\n! END of local decls !\n"
     in
         (localVarsStr,localDeclStrs)
         
@@ -772,7 +782,7 @@ getLocalDeclStrs_OLD :: [VarName Anno] -> Fortran Anno -> [String] -> String -> 
 getLocalDeclStrs_OLD allArgs fortran originalLines tabs kernelName =
     let
                                                 allArgs_strs = map varNameStr allArgs
-                                                allVars' =  extractAllVarNames (warning fortran ("\n! KERNEL: "++kernelName++"\n"++(miniPPF fortran)))
+                                                allVars' =  extractAllVarNames fortran -- (warning fortran ("\n! KERNEL: "++kernelName++"\n"++(miniPPF fortran)))
                                                 allVars = Data.Set.toList $ Data.Set.fromList allVars' -- this is a trick to remove duplicates
                                                 allVars_strs = map varNameStr allVars
                                                 localVars_strs = filter (\var -> not (var `elem` allArgs_strs)) allVars_strs -- so here u0 and test are missing from allVars AND from allArgs
@@ -1007,17 +1017,7 @@ removeIntent line = let
             in
 --        unwords chunksNoIntent'
                 lineNoIntent
--- WV
-split :: Char -> [Char] -> [[Char]]
-split delim str = map (\w -> map (\c -> if c==delim then ' ' else c) w) $ words (map (\c-> (if delim==c then ' ' else if c==' ' then delim else c)) str)
 
--- WV 
-findDeclLine :: String -> Bool
-findDeclLine line  =
-        let 
-            chunks = words line -- splits on spaces 
-        in 
-                if length chunks < 2 then False else chunks !! (length chunks - 2) == "::"
 --                   if chunks !! 1 == "parameter" && (chunks !! 3) !! 0 == 'u' then error line  else
 --                      chunks !! (length chunks - 2) == "::"
 -- WV
@@ -1026,7 +1026,7 @@ matchVarNameInDecl var_name line = let
         decl_var_name = last (words line) 
     in 
         decl_var_name == var_name
-
+      
 --    Function used during host code generation to produce call to OpenCL kernel.
 synthesiseKernelCall :: (Program Anno, String) -> String -> Fortran Anno -> String
 synthesiseKernelCall ([], _) _  _ = "DUMMY synthesiseKernelCall"
@@ -1056,6 +1056,28 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLMap anno src r w l fortran)
                 bufferReads = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Read") (writtenDecls ++ generalDecls))
 
                 (readDecls, writtenDecls, generalDecls) = generateKernelDeclarations progAst (OpenCLMap anno src r w l fortran)
+
+
+{-
+! ---- BEGIN press_reduce_103 -------------------------------------------------------------------------------------------------
+              oclGlobalRange = (NTH * NUNITS) ! OK
+              oclLocalRange = NTH ! OK
+              ngroups = NUNITS ! OK
+              state_ptr(1) = ST_PRESS_REDUCE_103 ! OK
+              
+              call oclWrite1DFloatArrayBuffer(global_sor_array_buf,global_sor_array_sz,global_sor_array) ! OK
+              call oclWrite1DIntArrayBuffer(state_ptr_buf,state_ptr_sz,state_ptr) ! OK
+
+              call runOcl(oclGlobalRange,oclLocalRange,exectime) ! OK
+              ! call press_reduce_103 ! OK
+              call oclRead1DFloatArrayBuffer(global_sor_array_buf,global_sor_array_sz,global_sor_array)
+              call oclRead1DFloatArrayBuffer(global_sor_array_buf,global_sor_array_sz,global_sor_array)
+              do r_iter=1, NUNITS
+                  sor = (sor + global_sor_array(r_iter))
+              end do
+
+! ---- END --------------------------------------------------------------------------------------------------------------------
+-}      
 synthesiseKernelCall (progAst, filename) tabs (OpenCLReduce anno src r w l rv fortran) = (commentSeparator ("BEGIN " ++ kernelName))
                                                             ++ tabs ++ "oclGlobalRange = " ++ outputExprFormatting reductionWorkItemsExpr ++ "\n"
                                                             ++ tabs ++ "oclLocalRange = " ++ outputExprFormatting nthVar ++ "\n"
@@ -1064,7 +1086,7 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLReduce anno src r w l rv fo
                                                             ++ tabs ++ bufferWrites ++ "\n\n"
                                                             ++ tabs ++ "call runOcl(oclGlobalRange,oclLocalRange,exectime)\n"
                                                             ++ tabs ++ "! call " ++ kernelName
-                                                             ++ bufferReads
+                                                            ++ bufferReads -- WV clearly one of these is redundant
                                                             ++ bufferReads_rv 
                                                             ++ "\n"
             where 

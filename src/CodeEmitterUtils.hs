@@ -6,7 +6,7 @@ where
 -- different goals during the transformations and analyses that are performed during code emission. All the functions are very simple
 -- and some merely have hardcoded outputs to provide some degree of consistency during code emission
 
-import Data.Generics 					(Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
+import Data.Generics                     (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
 import Language.Fortran
 import LanguageFortranTools
 import qualified Data.Map as DMap 
@@ -27,22 +27,22 @@ numGroupsVar = generateVar numGroupsVarName
 stateVarName = VarName nullAnno "state"
 statePtrVarName = VarName nullAnno "state_ptr"
 statePtrDecl = Decl nullAnno nullSrcSpan [(statePtrVar, NullExpr nullAnno nullSrcSpan, Nothing)] 
-									(BaseType nullAnno (Integer nullAnno) [Dimension nullAnno [(NullExpr nullAnno nullSrcSpan, generateIntConstant 1)]] (NullExpr nullAnno nullSrcSpan) (NullExpr nullAnno nullSrcSpan))
+                                    (BaseType nullAnno (Integer nullAnno) [Dimension nullAnno [(NullExpr nullAnno nullSrcSpan, generateIntConstant 1)]] (NullExpr nullAnno nullSrcSpan) (NullExpr nullAnno nullSrcSpan))
 stateVar = generateVar stateVarName
 stateVarDecl = Decl nullAnno nullSrcSpan [(stateVar, NullExpr nullAnno nullSrcSpan, Nothing)] 
-									(BaseType nullAnno (Integer nullAnno) [] (NullExpr nullAnno nullSrcSpan) (NullExpr nullAnno nullSrcSpan))
+                                    (BaseType nullAnno (Integer nullAnno) [] (NullExpr nullAnno nullSrcSpan) (NullExpr nullAnno nullSrcSpan))
 statePtrVar = generateVar statePtrVarName
 initModuleName moduleName = moduleName ++ "_init"
 hostModuleName moduleName = moduleName ++ "_host"
 
---	Function takes a list of lines from the original source and an object representing a range of line numbers and reproduces the original code
---	in the range of those line numbers.
+--    Function takes a list of lines from the original source and an object representing a range of line numbers and reproduces the original code
+--    in the range of those line numbers.
 extractOriginalCode :: String -> [String] -> SrcSpan -> String
 extractOriginalCode tabs originalLines src 
     | length originalLines > 0 = let
-						((SrcLoc f lineStart columnStart), (SrcLoc _ lineEnd columnEnd)) = src
+                        ((SrcLoc f lineStart columnStart), (SrcLoc _ lineEnd columnEnd)) = src
                  in
-						    foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [lineStart..lineEnd]
+                            foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [lineStart..lineEnd]
     | otherwise = ""                        
 
 
@@ -64,9 +64,9 @@ varBufVar varName = generateVar (varSizeVarName varName)
 varBufVarName :: VarName Anno -> VarName Anno
 varBufVarName (VarName _ str) = VarName nullAnno (str ++ "_buf")
 
---	Function is used (along with "getFirstBlockSrc") by "produceCode_progUnit" to determine which lines of the original
---	source can be taken as is. It is used to determine where the first Fortran nodes of the AST appear in the source
---	because the Fortran nodes are the ones that have been transformed.
+--    Function is used (along with "getFirstBlockSrc") by "produceCode_progUnit" to determine which lines of the original
+--    source can be taken as is. It is used to determine where the first Fortran nodes of the AST appear in the source
+--    because the Fortran nodes are the ones that have been transformed.
 getFirstFortranSrc :: Block Anno -> [SrcSpan]
 getFirstFortranSrc (Block _ _ _ _ _ fortran) = [srcSpan fortran]
 
@@ -79,67 +79,69 @@ getDimensionExprs _ = []
 
 insertDecls :: [Decl Anno] -> Decl Anno -> Decl Anno
 insertDecls newDecls declTree = insertDecl newDeclsTree declTree
-		where
-			newDeclsTree = constructDeclTree newDecls
+        where
+            newDeclsTree = constructDeclTree newDecls
 
 constructDeclTree :: [Decl Anno] -> Decl Anno
 constructDeclTree [] = NullDecl nullAnno nullSrcSpan
 constructDeclTree (decl:[]) = decl
 constructDeclTree (decl:decls) = DSeq nullAnno decl (constructDeclTree decls)
 
---	Given a decl to insert and the start of the decl tree, insert the new decl and return the new decl tree
+--    Given a decl to insert and the start of the decl tree, insert the new decl and return the new decl tree
 insertDecl :: Decl Anno -> Decl Anno -> Decl Anno 
 insertDecl newDecl (DSeq anno decl1 decl2) = DSeq anno decl1 (insertDecl newDecl decl2)
 insertDecl newDecl declLeaf = DSeq nullAnno declLeaf newDecl
 
 convertScalarToOneDimArray :: Decl Anno -> Decl Anno
-convertScalarToOneDimArray decl 	|	isScalar = addDimension decl nothing one
-									|	otherwise = decl
-		where
-			isScalar = (getDeclRank decl == 0)
-			one = generateIntConstant 1
-			nothing =  NullExpr nullAnno nullSrcSpan
-			zero = generateIntConstant 0
+convertScalarToOneDimArray decl     |    isScalar = addDimension decl nothing one
+                                    |    otherwise = decl
+        where
+            isScalar = (getDeclRank decl == 0)
+            one = generateIntConstant 1
+            nothing =  NullExpr nullAnno nullSrcSpan
+            zero = generateIntConstant 0
 
-
+-- data Type     p = BaseType p                    (BaseType p) [Attr p] (Expr p) (Expr p)
+-- data Decl     p = Decl           p SrcSpan [(Expr p, Expr p, Maybe Int)] (Type p)
 adaptForReadScalarDecls :: [VarName Anno] -> ([Decl Anno], [Decl Anno], [Decl Anno]) -> ([Decl Anno], [Decl Anno], [Decl Anno], Fortran Anno, [VarName Anno])
 adaptForReadScalarDecls allArgs (readDecls, writtenDecls, generalDecls)  = (finalReadDecls, writtenDecls, finalGeneralDecls, ptrAssignments_fseq, allArgs_ptrAdaption)
-		where
-			readScalars = map (removeIntentFromDecl) (filter (\x -> (getDeclRank x) == 0) readDecls)
-			generalScalars = map (removeIntentFromDecl) (filter (\x -> (getDeclRank x) == 0) generalDecls)
-			scalars = map (extractAssigneeFromDecl) (readScalars ++ generalScalars)
+        where
+            readScalars = map (removeIntentFromDecl) (filter (\x -> (getDeclRank x) == 0) readDecls)
+            readScalars_noParams = filter (\x ->not (containsParameterAttr x)) readScalars
+            generalScalars = map (removeIntentFromDecl) (filter (\x -> (getDeclRank x) == 0) generalDecls)
+            scalars = map (extractAssigneeFromDecl) (readScalars ++ generalScalars)
 
-			readDecls_noScalars = filter (\x -> (getDeclRank x) /= 0) readDecls -- listSubtract readDecls readScalars
-			generalDecls_noScalars = filter (\x -> (getDeclRank x) /= 0) generalDecls --listSubtract generalDecls generalScalars
+            readDecls_noScalars = filter (\x -> (getDeclRank x) /= 0) readDecls -- listSubtract readDecls readScalars
+            generalDecls_noScalars = filter (\x -> (getDeclRank x) /= 0) generalDecls --listSubtract generalDecls generalScalars
 
-			readPtrs = map declareScalarPointer_decl readScalars
-			generalPtrs = map declareScalarPointer_decl generalScalars
+            readPtrs = map declareScalarPointer_decl readScalars
+            generalPtrs = map declareScalarPointer_decl generalScalars
 
-			ptrAssignments_list = map (\decl -> generatePtrScalarAssignment (extractAssigneeFromDecl decl)) (readScalars ++ generalScalars)
+            ptrAssignments_list = map (\decl -> generatePtrScalarAssignment (extractAssigneeFromDecl decl)) (readScalars ++ generalScalars)
             -- WV
-			--ptrAssignments_fseq = generateFSeq ptrAssignments_list
-			ptrAssignments_fseq = generateFSeq []
+            --ptrAssignments_fseq = generateFSeq ptrAssignments_list
+            ptrAssignments_fseq = generateFSeq []
 
-			finalReadDecls = readDecls_noScalars ++ readScalars -- WV -- ++ readPtrs
-			finalGeneralDecls = generalDecls_noScalars ++ generalScalars -- WV -- ++ generalPtrs
+            finalReadDecls = readDecls_noScalars ++ readScalars_noParams -- WV -- ++ readPtrs
+            finalGeneralDecls = generalDecls_noScalars ++ generalScalars -- WV -- ++ generalPtrs
             -- WV
-			allArgs_ptrAdaption = allArgs -- map (\var -> if elem var scalars then scalarPointerVarName var else var) allArgs
-			-- allArgs_ptrAdaption = map (\var -> if elem var scalars then scalarPointerVarName var else var) allArgs
+            allArgs_ptrAdaption = allArgs -- map (\var -> if elem var scalars then scalarPointerVarName var else var) allArgs
+            -- allArgs_ptrAdaption = map (\var -> if elem var scalars then scalarPointerVarName var else var) allArgs
 
 addDimension :: Decl Anno -> Expr Anno -> Expr Anno -> Decl Anno
 addDimension decl start end = newDecl
-			where 
-				dimensions = everything (++) (mkQ [] extractDimensionAttr) decl
-				newDecl = case dimensions of
-							[] -> everywhere (mkT (addNewDimensionClaus start end)) decl
-							_ -> everywhere (mkT (appendDimension start end)) decl
+            where 
+                dimensions = everything (++) (mkQ [] extractDimensionAttr) decl
+                newDecl = case dimensions of
+                            [] -> everywhere (mkT (addNewDimensionClaus start end)) decl
+                            _ -> everywhere (mkT (appendDimension start end)) decl
 
 getDeclRank :: Decl Anno -> Int
-getDeclRank decl 	|	extractedDimensions == [] = 0
-					|	otherwise = dimensionRank
-		where
-			extractedDimensions = everything (++) (mkQ [] extractDimensionAttr) decl
-			dimensionRank = length (getDimensionExprs (head extractedDimensions))
+getDeclRank decl     |    extractedDimensions == [] = 0
+                    |    otherwise = dimensionRank
+        where
+            extractedDimensions = everything (++) (mkQ [] extractDimensionAttr) decl
+            dimensionRank = length (getDimensionExprs (head extractedDimensions))
 
 removeIntentFromDecl :: Decl Anno -> Decl Anno
 removeIntentFromDecl decl = gmapT (mkT removeIntentFromType) decl
@@ -147,32 +149,32 @@ removeIntentFromDecl decl = gmapT (mkT removeIntentFromType) decl
 -- WV: WRONG! this creates a 2-elt array decl
 declareScalarPointer_decl :: Decl Anno -> Decl Anno
 declareScalarPointer_decl decl = resultDecl
-			where
-				one = generateIntConstant 1
-				nothing = NullExpr nullAnno nullSrcSpan -- generateIntConstant 0
-				-- nothing = generateIntConstant 7188
-				varname = extractAssigneeFromDecl decl
-				newVarName = scalarPointerVarName varname
-				resultDecl = replaceAllOccurences_varname (addDimension decl nothing one) varname newVarName
+            where
+                one = generateIntConstant 1
+                nothing = NullExpr nullAnno nullSrcSpan -- generateIntConstant 0
+                -- nothing = generateIntConstant 7188
+                varname = extractAssigneeFromDecl decl
+                newVarName = scalarPointerVarName varname
+                resultDecl = replaceAllOccurences_varname (addDimension decl nothing one) varname newVarName
 
 extractDimensionAttr :: Attr Anno -> [Attr Anno]
 extractDimensionAttr attr = case attr of
-								Dimension _ _ -> [attr]
-								_ -> [] 
+                                Dimension _ _ -> [attr]
+                                _ -> [] 
 
 
 addNewDimensionClaus :: Expr Anno -> Expr Anno -> [Attr Anno] -> [Attr Anno]
 addNewDimensionClaus start end [] = [(Dimension nullAnno [(start, end)])]
 addNewDimensionClaus start end (attr:attrList) = case attr of
-										Intent _ _ -> [attr] ++ attrList
-										_ -> [attr] ++ addNewDimensionClaus start end attrList
+                                        Intent _ _ -> [attr] ++ attrList
+                                        _ -> [attr] ++ addNewDimensionClaus start end attrList
 
 generatePtrScalarAssignment :: VarName Anno -> Fortran Anno
 generatePtrScalarAssignment var = Assg nullAnno nullSrcSpan assignee assignment
-		where
-			ptrName = scalarPointerVarName var
-			assignee = generateVar var
-			assignment = generateArrayVar ptrName [generateIntConstant 1]
+        where
+            ptrName = scalarPointerVarName var
+            assignee = generateVar var
+            assignment = generateArrayVar ptrName [generateIntConstant 1]
 
 appendDimension :: Expr Anno -> Expr Anno -> Attr Anno -> Attr Anno
 appendDimension start end (Dimension anno lst) = Dimension anno (lst ++ [(start, end)])
@@ -180,11 +182,11 @@ appendDimension start end att = att
 
 removeIntentFromType :: Type Anno -> Type Anno
 removeIntentFromType (BaseType anno btype attrList expr1 expr2) = (BaseType anno btype newAttrList expr1 expr2)
-		where
-			newAttrList = filter (\x -> not (isIntent x)) attrList
+        where
+            newAttrList = filter (\x -> not (isIntent x)) attrList
 removeIntentFromType (ArrayT  anno exprList btype attrList expr1 expr2) = (ArrayT  anno exprList btype newAttrList expr1 expr2)
-		where
-			newAttrList = filter (\x -> not (isIntent x)) attrList
+        where
+            newAttrList = filter (\x -> not (isIntent x)) attrList
 
 isIntent :: Attr Anno -> Bool
 isIntent (Intent _ _) = True
@@ -194,34 +196,34 @@ extractDeclaration_varname :: VarName Anno -> Program Anno -> [Decl Anno]
 extractDeclaration_varname varname program = everything (++) (mkQ [] (extractDeclaration_varname' varname)) program
 
 extractDeclaration_varname' :: VarName Anno -> Decl Anno -> [Decl Anno]
-extractDeclaration_varname' varname  (Decl anno src lst typ)  	| firstHasVar || secondHasVar = [Decl anno src lst typ]
-														| otherwise = []
-			where
-				firstExprs = map (\(expr, _, _) -> expr) lst
-				secondExprs = map (\(_, expr, _) -> expr) lst
+extractDeclaration_varname' varname  (Decl anno src lst typ)      | firstHasVar || secondHasVar = [Decl anno src lst typ]
+                                                        | otherwise = []
+            where
+                firstExprs = map (\(expr, _, _) -> expr) lst
+                secondExprs = map (\(_, expr, _) -> expr) lst
 
-				firstHasVar = foldl (\accum item -> accum || usesVarName_list [varname] item) False firstExprs
-				secondHasVar = foldl (\accum item -> accum || usesVarName_list [varname] item) False secondExprs
+                firstHasVar = foldl (\accum item -> accum || usesVarName_list [varname] item) False firstExprs
+                secondHasVar = foldl (\accum item -> accum || usesVarName_list [varname] item) False secondExprs
 extractDeclaration_varname' varname decl = []
 
 getOriginalDeclaration :: [String] -> VarName Anno -> Program Anno -> Maybe(String)
 getOriginalDeclaration originalLines varname program = case declSrc_list of
-														[] -> Nothing
-														_ -> Just (extractOriginalCode "" originalLines declSrc)
-			where 
-				declSrc_list = everything (++) (mkQ [] (extractDeclaration_varnameSrcSpan varname)) program
-				declSrc = head declSrc_list
+                                                        [] -> Nothing
+                                                        _ -> Just (extractOriginalCode "" originalLines declSrc)
+            where 
+                declSrc_list = everything (++) (mkQ [] (extractDeclaration_varnameSrcSpan varname)) program
+                declSrc = head declSrc_list
 
 
 extractDeclaration_varnameSrcSpan :: VarName Anno -> Decl Anno -> [SrcSpan]
-extractDeclaration_varnameSrcSpan varname (Decl _ src lst _) 	| firstHasVar || secondHasVar = [src]
-														| otherwise = []
-			where
-				firstExprs = map (\(expr, _, _) -> expr) lst
-				secondExprs = map (\(_, expr, _) -> expr) lst
+extractDeclaration_varnameSrcSpan varname (Decl _ src lst _)     | firstHasVar || secondHasVar = [src]
+                                                        | otherwise = []
+            where
+                firstExprs = map (\(expr, _, _) -> expr) lst
+                secondExprs = map (\(_, expr, _) -> expr) lst
 
-				firstHasVar = foldl (\accum item -> accum || usesVarName_list [varname] item) False firstExprs
-				secondHasVar = foldl (\accum item -> accum || usesVarName_list [varname] item) False secondExprs
+                firstHasVar = foldl (\accum item -> accum || usesVarName_list [varname] item) False firstExprs
+                secondHasVar = foldl (\accum item -> accum || usesVarName_list [varname] item) False secondExprs
 extractDeclaration_varnameSrcSpan varname decl = []
 
 containsParameterAttr :: Decl Anno -> Bool
@@ -244,16 +246,16 @@ replaceIntent newIntent oldIntent = newIntent
 addIntent :: IntentAttr Anno -> [Attr Anno] -> [Attr Anno]
 addIntent intent [] = [Intent nullAnno intent]
 addIntent intent (attr:attrList) = case attr of
-										Intent _ _ -> [attr] ++ attrList
-										_ -> [attr] ++ addIntent intent attrList
+                                        Intent _ _ -> [attr] ++ attrList
+                                        _ -> [attr] ++ addIntent intent attrList
 
 anyChildGenerated :: Fortran Anno -> Bool
 anyChildGenerated ast = everything (||) (mkQ False isGenerated) ast
 
 isGenerated :: Fortran Anno -> Bool
 isGenerated codeSeg = f /= "<unknown>" || (lineStart == -1 && lineEnd == -1) || f == "generated"
-			where
-				((SrcLoc f lineStart columnStart), (SrcLoc _ lineEnd columnEnd)) = srcSpan codeSeg
+            where
+                ((SrcLoc f lineStart columnStart), (SrcLoc _ lineEnd columnEnd)) = srcSpan codeSeg
 
 
 getGlobalID :: Expr Anno ->  Expr Anno
@@ -286,26 +288,26 @@ collectDecls :: [Decl Anno] -> Decl Anno -> [Decl Anno]
 collectDecls previousDecls currentDecl = mergeDeclWithPrevious_recurse previousDecls currentDecl
 
 mergeDeclWithPrevious_recurse :: [Decl Anno] -> Decl Anno -> [Decl Anno]
-mergeDeclWithPrevious_recurse (listDecl:decls) currentDecl 	|	matchingVarNames && currentDeclIntentAttrs == listDeclIntentAttrs = currentDecl:decls
-															|	matchingVarNames && currentDeclIntentAttrs /= listDeclIntentAttrs = adaptedIntentDecl:decls
-															|	otherwise = listDecl:(mergeDeclWithPrevious_recurse decls currentDecl)
-			where
-				listDeclName = extractAssigneeFromDecl listDecl
-				currentDeclName = extractAssigneeFromDecl currentDecl
-				matchingVarNames = listDeclName == currentDeclName
+mergeDeclWithPrevious_recurse (listDecl:decls) currentDecl     |    matchingVarNames && currentDeclIntentAttrs == listDeclIntentAttrs = currentDecl:decls
+                                                            |    matchingVarNames && currentDeclIntentAttrs /= listDeclIntentAttrs = adaptedIntentDecl:decls
+                                                            |    otherwise = listDecl:(mergeDeclWithPrevious_recurse decls currentDecl)
+            where
+                listDeclName = extractAssigneeFromDecl listDecl
+                currentDeclName = extractAssigneeFromDecl currentDecl
+                matchingVarNames = listDeclName == currentDeclName
 
-				listDeclIntentAttrs = everything (++) (mkQ [] extractintentAttrs) listDecl
-				currentDeclIntentAttrs = everything (++) (mkQ [] extractintentAttrs) currentDecl
+                listDeclIntentAttrs = everything (++) (mkQ [] extractintentAttrs) listDecl
+                currentDeclIntentAttrs = everything (++) (mkQ [] extractintentAttrs) currentDecl
 
-				adaptedIntentDecl = applyIntent (InOut nullAnno) listDecl
+                adaptedIntentDecl = applyIntent (InOut nullAnno) listDecl
 mergeDeclWithPrevious_recurse [] currentDecl = [currentDecl]
 
 
 extractKernelArguments :: Fortran Anno -> [VarName Anno]
 extractKernelArguments (OpenCLMap _ _ r w _ _) = listRemoveDuplications (r ++ w)
 extractKernelArguments (OpenCLReduce _ _ r w _ rv _) = listRemoveDuplications ((listSubtract (r ++ w) rvVarNames) ++ (map (\x -> generateGlobalReductionArray (fst x)) rv))
-				where
-					rvVarNames = map (fst) rv
+                where
+                    rvVarNames = map (fst) rv
 extractKernelArguments _ = []
 
 generateLocalReductionArray (VarName anno str) = VarName anno ("local_" ++ str ++ "_array")
@@ -316,13 +318,13 @@ generateLocalReductionVar (VarName anno str) = VarName anno ("local_" ++ str)
 
 applyIntent :: IntentAttr Anno -> Decl Anno -> Decl Anno
 applyIntent intent decl =  newDecl
-			where 
-				intentAttrs = everything (++) (mkQ [] extractintentAttrs) decl
-				newDecl = case intentAttrs of
-							[] -> everywhere (mkT (addIntent intent)) decl
-							_ -> everywhere (mkT (replaceIntent intent)) decl
+            where 
+                intentAttrs = everything (++) (mkQ [] extractintentAttrs) decl
+                newDecl = case intentAttrs of
+                            [] -> everywhere (mkT (addIntent intent)) decl
+                            _ -> everywhere (mkT (replaceIntent intent)) decl
 
---	The following functions are used to define names for output files from the input files' names.
+--    The following functions are used to define names for output files from the input files' names.
 getModuleName :: String -> String
 getModuleName filename = head (splitOnChar '.' (last (splitOnChar '/' filename)))
 
@@ -330,9 +332,9 @@ splitOnChar :: Char -> String -> [String]
 splitOnChar char str = splitOnChar' char "" str
 
 splitOnChar' :: Char -> String -> String -> [String]
-splitOnChar' char current (x:xs) 	|	char == x = current:(splitOnChar' char "" xs)
-									|	otherwise = splitOnChar' char (current ++ [x]) xs
-splitOnChar' _ current []			=	[current]
+splitOnChar' char current (x:xs)     |    char == x = current:(splitOnChar' char "" xs)
+                                    |    otherwise = splitOnChar' char (current ++ [x]) xs
+splitOnChar' _ current []            =    [current]
 
 stripDeclAttrs :: Decl Anno -> Decl Anno
 stripDeclAttrs decl = everywhere (mkT stripAttrs) decl

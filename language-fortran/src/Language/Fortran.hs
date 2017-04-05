@@ -228,6 +228,10 @@ data Fortran  p = Assg p SrcSpan (Expr p) (Expr p)
                   [(VarName p, Expr p, Expr p, Expr p)] -- Loop variables of nested reductions
                   [(VarName p, Expr p)]                 -- List of variables that are considered 'reduction variables' along with their initial values
                   (Fortran p)                           -- Body of kernel code
+                | OpenCLSeq p SrcSpan
+                  [VarName p]                           -- List of arguments to kernel that are READ
+                  [VarName p]                           -- List of arguments to kernel that are WRITTEN
+                  (Fortran p)                           -- Body of kernel code
                 | OpenCLBufferRead p SrcSpan
                   (VarName p)                           -- Name of var that buffer is read to
                 | OpenCLBufferWrite p SrcSpan

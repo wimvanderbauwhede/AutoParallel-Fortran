@@ -25,12 +25,12 @@ import LanguageFortranTools
 foldConstants :: ProgUnit Anno -> ProgUnit Anno
 foldConstants codeSeg = replaceVarsWithConstants codeSeg constants_assgs
         where
-            --    First step is to collect all of the declarations in the program unit before using those declarations to begin
+            --    1. Collect all of the declarations in the program unit before using those declarations to begin
             --    building up a table of constants.
             decls = everything (++) (mkQ [] extractDecl) codeSeg
             constants_decls = addDeclsToConstants decls DMap.empty
 
-            --    Second, any variables that are only assigned a value once may be considered constants and thus added to the 
+            --    2. Any variables that are only assigned a value once may be considered constants and thus added to the 
             --    constants table. However, these assignments must appear at the top level of scope in the program, and not
             --    in loops. The approach here is to find a list of variables that are only assigned at the top level and remove
             --    any of those variables that already exist in the constant table (ie, already have been given a value). This list

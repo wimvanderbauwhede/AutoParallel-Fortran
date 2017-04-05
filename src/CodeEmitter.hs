@@ -22,18 +22,19 @@ import qualified Data.Map as DMap
 import CodeEmitterUtils
 import LanguageFortranTools
 import SubroutineTable                     (
-        SubroutineTable(..),
-        ArgumentTranslation, ArgumentTranslationSubroutines, emptyArgumentTranslation, getSubroutineArgumentTranslation, translateArguments,
+        SubroutineTable(..), SubRec(..),
+        ArgumentTranslation, SubroutineArgumentTranslationMap, emptyArgumentTranslation, getSubroutineArgumentTranslation, translateArguments,
                                         extractSubroutines, extractProgUnitName)
 import FortranSynthesiser
 
 -- fileCoordinated_parallelisedList fileCoordinated_bufferOptimisedPrograms argTranslations (newMainAst, mainFilename) [] []
-emit :: String -> [String] -> Bool -> [(Program Anno, String)] -> [(Program Anno, String)] -> ArgumentTranslationSubroutines -> (Program Anno, String) -> [VarName Anno] -> [VarName Anno] -> SubroutineTable -> IO [()]
+emit :: String -> [String] -> Bool -> [(Program Anno, String)] -> [(Program Anno, String)] -> SubroutineArgumentTranslationMap -> (Program Anno, String) -> [VarName Anno] -> [VarName Anno] -> SubroutineTable -> IO [()]
 emit specified cppDFlags fixedForm programs_verboseArgs programs_optimisedBuffers argTranslations (mainAst, mainFilename) initWrites tearDownReads orig_asts = do
 
-                kernels_code <- mapM (emitKernels cppDFlags fixedForm orig_asts) programs_verboseArgs 
+--                kernels_code <- mapM (emitKernelsM cppDFlags fixedForm orig_asts) programs_verboseArgs 
+                let kernels_code = map (emitKernels cppDFlags fixedForm orig_asts) programs_verboseArgs 
                 let allKernels = foldl (++) [] kernels_code
-                let kernelNames = map (snd) allKernels
+                let kernelNames = map snd allKernels
 
                 let originalFilenames = map (\x -> getModuleName (snd x)) programs_verboseArgs
                 let superkernelName = synthesiseSuperKernelName originalFilenames
@@ -44,9 +45,9 @@ emit specified cppDFlags fixedForm programs_verboseArgs programs_optimisedBuffer
 
                 let (superKernel_module, allKernelArgsMap) = synthesiseSuperKernelModule moduleName superkernelName programs_verboseArgs allKernels
                 let initModule = synthesiseInitModule moduleName superkernelName programs_verboseArgs allKernelArgsMap allKernels
-
+                -- WV: TODO: use orig_asts
                 host_code <- mapM (produceCode_prog allKernelArgsMap argTranslations cppDFlags fixedForm moduleName superkernelName) programs_optimisedBuffers
-                main_code <- produceCode_prog allKernelArgsMap argTranslations cppDFlags fixedForm moduleName superkernelName (mainAst, mainFilename)
+                main_code <- produceCode_prog allKernelArgsMap argTranslations cppDFlags fixedForm moduleName superkernelName ( mainAst , mainFilename)
 
                 let host_programs = zip host_code (map (\x -> specified ++ "/" ++ x ++ "_host.f95") originalFilenames)
 
@@ -96,22 +97,46 @@ fixedFormFormat_isComment [] = True
 fixedFormFormat_leadingWhiteSpaceCount :: String -> Int
 fixedFormFormat_leadingWhiteSpaceCount (char:str)     |    isSpace char = 1 + fixedFormFormat_leadingWhiteSpaceCount str
                                                     |    otherwise = 0
+-- getSubRec :: SubroutineTable -> String -> SubRec
+-- getSubRec orig_asts filename = DMap.findWithDefault (error ("No rec for "++filename++": "++(show $ DMap.keys orig_asts)) ) filename orig_asts
 
 getOrigAST :: SubroutineTable -> String -> ProgUnit Anno
 getOrigAST orig_asts filename = let
         orig_asts_list = DMap.toList orig_asts
-        orig_ast_list = filter (\(subname,(ast,fname)) -> fname == filename) orig_asts_list
+        orig_ast_list = filter (\(subname,subrec) -> subSrcFile subrec == filename) orig_asts_list
     in
-        (\(subname,(ast,fname)) -> ast) $ head orig_ast_list
+        (\(subname,subrec) -> subAst subrec) $ head orig_ast_list
 
-emitKernels :: [String] -> Bool -> SubroutineTable -> (Program Anno, String) -> IO [(String, String)]
-emitKernels cppDFlags fixedForm orig_asts (ast, filename) = do
-                originalLines <- readOriginalFileLines cppDFlags fixedForm filename
+getSubRec :: SubroutineTable -> String -> SubRec
+getSubRec  orig_asts filename = let
+        orig_asts_list = DMap.toList orig_asts
+        orig_ast_list = filter (\(subname,subrec) -> subSrcFile subrec == filename) orig_asts_list
+    in
+       snd $ head orig_ast_list
+
+
+
+
+emitKernelsM :: [String] -> Bool -> SubroutineTable -> (Program Anno, String) -> IO [(String, String)]
+emitKernelsM cppDFlags fixedForm orig_asts (ast, filename) = do
+--                originalLines <- readOriginalFileLines cppDFlags fixedForm filename
+                let originalLines = subSrcLines (getSubRec  orig_asts filename)
                 -- WV: seems to me this is simply "unlines"; and it is unused too
                 -- let originalListing = case originalLines of
                 --                        []    -> ""
                 --                        _ -> foldl (\accum item -> accum ++ "\n" ++ item) (head originalLines) (tail originalLines)
                 let orig_ast = getOrigAST orig_asts filename 
                 let kernels_code = everything (++) (mkQ [] (synthesiseKernels originalLines orig_ast (ast, filename))) ast
-                let kernels_renamed = map (\(code, kernelname) -> (code, kernelname)) kernels_code
-                return kernels_renamed
+--                let kernels_renamed = map (\(code, kernelname) -> (code ,kernelname)) kernels_code
+--                return kernels_renamed
+                return kernels_code
+
+
+
+emitKernels :: [String] -> Bool -> SubroutineTable -> (Program Anno, String) -> [(String, String)]
+emitKernels cppDFlags fixedForm orig_asts (ast, filename) = let
+                originalLines = subSrcLines (getSubRec  orig_asts filename)
+                orig_ast = getOrigAST orig_asts filename 
+                kernels_code = everything (++) (mkQ [] (synthesiseKernels originalLines orig_ast (ast, filename))) ast
+            in
+                kernels_code                
