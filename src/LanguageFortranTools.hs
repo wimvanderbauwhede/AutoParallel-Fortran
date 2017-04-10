@@ -53,7 +53,7 @@ cpp cppArgs fixedForm filename = do
     let dFlagList = if length cppArgs > 0
         then foldl (\accum item -> accum ++ ["-D", item]) [] cppArgs
         else  []
-    let dFlagStr = if length dFlagList == 0 then  "" else unwords dFlagList    
+    let dFlagStr = if length dFlagList == 0 then  "D__GO_GO_7188__" else unwords dFlagList    
     inp <- readProcess "cpp" ["-P",dFlagStr,filename] ""
     let
     return $ preProcess fixedForm inp
@@ -830,6 +830,8 @@ extractIndent _ = ""
 split :: Char -> [Char] -> [[Char]]
 split delim str = map (\w -> map (\c -> if c==delim then ' ' else c) w) $ words (map (\c-> (if delim==c then ' ' else if c==' ' then delim else c)) str)
 
+
+-- "integer,", "parameter", "::", "ip=150"
 -- WV 
 findDeclLine :: String -> Bool
 findDeclLine line  =
@@ -853,20 +855,56 @@ readUsedModuleDecls line =
         module_name_maybe_commment = chunks !! 1
         module_name_chunks = split '!' module_name_maybe_commment
         module_name = module_name_chunks !! 0
+        file_name_root = drop (length "module_") module_name
 --        module_name = chunks !! 1
     in
         do
-            test <- doesFileExist (module_name ++ ".f95")
-            module_content_str <- if test
+            test1 <- doesFileExist (module_name ++ ".f95")
+            test2 <- doesFileExist (file_name_root ++ ".f95")
+            module_content_str <- if test1
                 then
                         readFile (module_name ++ ".f95")
                 else
-                        return ""
-            let module_lines = lines module_content_str
-            let decl_lines = filter findDeclLine module_lines
---            mapM print decl_lines
-            return decl_lines
+                    if test2 
+                        then
+                            -- OK, this file exists. read it and check if it is decl-only
+                            -- we do this by checking for "contains" and "subroutine "
+                            readFile (file_name_root ++ ".f95")
+                        else
+                            return ""
+            let test3 = isDeclOnly module_content_str
+            if test3 
+                then
+                    do
+                        let module_lines = lines module_content_str
+                        let decl_lines = filter findDeclLine module_lines
+                        return decl_lines
+                else
+                    return [line]
 
+isDeclOnly module_content_str = let
+    module_lines = lines module_content_str
+    relevant_module_lines = filter isRelevantModuleLine module_lines
+    non_decl_lines = filter (not . findDeclLine) relevant_module_lines
+    in
+        null non_decl_lines
+
+-- This removes the module declaration as well as "use", "contains" and "implicit". Rather ad-hoc
+isRelevantModuleLine line 
+    | null chunks = False
+    | otherwise = 
+        let
+            w1 = head chunks
+            w2 = if length chunks > 1 then chunks !! 1 else ""
+            res
+                | (head w1) == '!' = False
+                | w1 `elem` ["module","contains","use","implicit"] = False
+                | w1 == "end" && w2 `elem` ["module"] = False
+                | otherwise = True
+        in                
+            res
+  where                    
+    chunks = words line
 -- WV            
 inlineDeclsFromUsedModules contentLines = do
                 expandedContentLines <- mapM (\line -> if (isUseDecl line) then (readUsedModuleDecls line) else return [ line ]) contentLines

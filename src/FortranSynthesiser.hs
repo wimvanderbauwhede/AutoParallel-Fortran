@@ -30,6 +30,7 @@ import MiniPP (miniPPF, miniPPD)
 
 import Data.Generics                     (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
 import Language.Fortran
+import Language.Fortran.Parser (context_parse)
 import Data.Char
 import Data.List
 import Data.Set (toList, fromList)
@@ -38,7 +39,7 @@ import qualified Data.Map as DMap
 import FortranGenerator -- WV: TODO: add the import list here
 import CodeEmitterUtils
 import LanguageFortranTools
-import SubroutineTable                     (SubRec(..),ArgumentTranslation, SubroutineArgumentTranslationMap, emptyArgumentTranslation, getSubroutineArgumentTranslation, translateArguments,
+import SubroutineTable                     (SubroutineTable(..),SubRec(..),ArgumentTranslation, SubroutineArgumentTranslationMap, emptyArgumentTranslation, getSubroutineArgumentTranslation, translateArguments,
                                         extractSubroutines, extractProgUnitName)
 
 
@@ -261,14 +262,17 @@ produceCode_fortran prog tabs originalLines codeSeg = case codeSeg of
                                     True -> foldl (++) tabs (gmapQ (mkQ "" (produceCode_fortran prog "" originalLines)) codeSeg)
                                     False -> extractOriginalCode tabs originalLines (srcSpan codeSeg)
 
-synthesiseInitModule :: String -> String ->  [(Program Anno, String)] -> KernelArgsIndexMap -> [(String, String)] -> String
-synthesiseInitModule moduleName superKernelName programs allKernelArgsMap kernels =     initModuleHeader 
-                                        ++     stateDefinitions 
-                                        ++    "\ncontains\n\n"
-                                        ++    oneTab ++ initSubroutineHeader
+synthesiseInitModule :: String -> String ->  [(Program Anno, String)] -> KernelArgsIndexMap -> [(String, String)] -> SubroutineTable -> String
+synthesiseInitModule moduleName superKernelName programs allKernelArgsMap kernels orig_subrecs =     
+                                                  initModuleHeader 
+                                            ++    stateDefinitions 
+                                            ++    "\ncontains\n\n"
+                                            ++    oneTab ++ initSubroutineHeader
                                             ++    twoTab ++ "use oclWrapper\n"
-                                            ++    usesString
+                                            ++    usesString                                            
                                             ++    kernelInitialisationStrs
+                                            ++    "! parameters\n" -- these are *all* parameters used in any kernel
+                                            ++    paramDeclsStr
                                             ++    "! declarations\n" 
                                             ++    declarationsStr
                                             ++    "! buffer declarations\n" 
@@ -302,7 +306,7 @@ synthesiseInitModule moduleName superKernelName programs allKernelArgsMap kernel
                     kernelArgs = DMap.keys allKernelArgsMap
 
                     programAsts = map (fst) programs
-                    kernelAstLists = map (extractKernels) programAsts
+                    kernelAstLists = map extractKernels programAsts
                     kernelAsts = foldl (++) [] (map (\(k_asts, p_ast) -> map (\a -> (a, p_ast)) k_asts) (zip kernelAstLists programAsts))
 
                     extractedUses = foldl (\accum item -> listConcatUnique accum (everything (++) (mkQ [] getUses) item)) [] programAsts
@@ -310,8 +314,13 @@ synthesiseInitModule moduleName superKernelName programs allKernelArgsMap kernel
 
                     kernelDeclarations = map (\(kernel_ast, prog_ast) -> generateKernelDeclarations prog_ast kernel_ast) kernelAsts
                     (readDecls, writtenDecls, generalDecls) =  foldl (\(accum_r, accum_w, accum_g) (r, w, g) -> (accum_r ++ r, accum_w ++ w, accum_g ++ g)) ([],[],[]) kernelDeclarations
+                    -- WV: The parameter declarations are missing. The simplest, crudest way to fix this is by taking *all* parameter decls from all subs and nub them.
+                    -- WV: This blatantly ignores conflicts in parameter names
+--                    paramDeclsStr = unlines $ map miniPPD $ filter isParamDecl $ nub $ map context_parse $ foldl1 (++) $ map (\(k,v) -> subSrcLines v) (DMap.toList orig_subrecs)
+                    paramDeclsStr = concat $ nub $ map (\decl ->twoTab++(miniPPD decl)) $ concatMap (extractParamDecls . subAst) (DMap.elems orig_subrecs)
+
                     -- WV this is not correct, there are way too many because none of the local scalar variables needs to be here!
-                    declarations = foldl (collectDecls) [] (readDecls ++ writtenDecls ++ generalDecls ++ [statePtrDecl])
+                    declarations = foldl collectDecls [] (readDecls ++ writtenDecls ++ generalDecls ++ [statePtrDecl])
                     declarations_noIntent = map (removeIntentFromDecl) declarations
                     declarationsStr = foldl (\accum item -> accum ++ synthesiseDecl twoTab item) "" declarations_noIntent
 
@@ -332,6 +341,14 @@ synthesiseInitModule moduleName superKernelName programs allKernelArgsMap kernel
                     oneTab = tabInc
                     twoTab = oneTab ++ tabInc
 
+-- WV:
+-- I guess I could write a extractNodes f = everything (++) ([] `mkQ` f) 
+-- but it might be a problem if the result type can't be shown
+extractParamDecls :: ProgUnit Anno -> [Decl Anno]
+extractParamDecls  = everything (++) ([] `mkQ` isPD)
+     where isPD decl@(Decl _ _ _ ( BaseType _ _ [Parameter _] _ _ )) = [decl]
+           isPD _ = []
+                  
 synthesiseSuperKernelModule :: String -> String -> [(Program Anno, String)] -> [(String, String)] -> (String, KernelArgsIndexMap)
 synthesiseSuperKernelModule moduleName superKernelName programs kernels =  (kernelModuleHeader
                                                                             ++ contains
@@ -682,6 +699,7 @@ synthesiseOpenCLMap inTabs originalLines orig_ast programInfo (OpenCLMap anno sr
                                                                                     ++ allArgs_ptrAdaptionStr ++ ")\n"
                                                                     ++ usesString
                                                                     ++ "\n"
+                                                                    ++ paramDeclStrs
                                                                     ++ tabs ++localVarsStr 
                                                                     ++ localDeclStrs
                                                                     ++ tabs ++ "! " ++ compilerName ++ ": Synthesised loop variable decls\n"
@@ -725,7 +743,7 @@ synthesiseOpenCLMap inTabs originalLines orig_ast programInfo (OpenCLMap anno sr
 
                                                 allArgs = extractKernelArguments (OpenCLMap anno src r w l fortran)      
                                                 -- WV: local variable declarations
-                                                (localVarsStr,localDeclStrs) = getLocalDeclStrs allArgs orig_decls_stmts originalLines tabs kernelName
+                                                (localVarsStr,localDeclStrs,paramDeclStrs) = getLocalDeclStrs allArgs orig_decls_stmts originalLines tabs kernelName
                                                 -- WV: declarations for _range and _rel
                                                 range_rel_decls_str = generateRangeRelDecls l tabs --  we can do this because they *must* be integers    
                                                 (readDecls, writtenDecls, generalDecls, ptrAssignments_fseq, allArgs_ptrAdaption) = adaptForReadScalarDecls allArgs (generateKernelDeclarations prog (OpenCLMap anno src r w l fortran))
@@ -754,14 +772,14 @@ generateRangeRelDecls loopvartups tabs =
     in
         unlines $ rangevardecls ++ relvardecls
 
-getLocalDeclStrs :: [VarName Anno] -> (Decl Anno, Fortran Anno) -> [String] -> String -> String -> (String,String)
+getLocalDeclStrs :: [VarName Anno] -> (Decl Anno, Fortran Anno) -> [String] -> String -> String -> (String,String,String)
 getLocalDeclStrs allArgs orig_decls_stmts originalLines tabs kernelName =
     let
                                                 allArgs_strs = map varNameStr allArgs
                                                 allVars' =  extractAllVarNames fortran -- (warning fortran ("\n! KERNEL: "++kernelName++"\n"++(miniPPF fortran)))
                                                 allVars = Data.Set.toList $ Data.Set.fromList allVars' -- this is a trick to remove duplicates
                                                 allVars_strs = map varNameStr allVars
-                                                (decls,fortran) = orig_decls_stmts
+                                                (decls,fortran) = orig_decls_stmts -- WV: TODO: currently unused
                                                 localVars_strs = filter (\var -> not (var `elem` allArgs_strs)) allVars_strs -- so here u0 and test are missing from allVars AND from allArgs
                                                 localVarsStr =  "! Local vars: "++ ( intercalate "," localVars_strs) ++"\n" -- ++(miniPPD decls);
                                                 -- so now I need to get the corresponding declarations from the original subroutine
@@ -774,9 +792,10 @@ getLocalDeclStrs allArgs orig_decls_stmts originalLines tabs kernelName =
                                                 matchingOrigDeclLines = map (\var_name -> unlines $ filter (matchVarNameInDecl var_name) origDeclLines) localVars_strs
                                                 matchingOrigDeclLinesNoIntent = map removeIntent matchingOrigDeclLines                                                
                                                 localDeclStrs = unlines (map (\l->tabs++l) matchingOrigDeclLinesNoIntent)
+                                                paramDeclStrs = unlines (map (\l->tabs++l) ( filter matchParameterDecl origDeclLines))
 --                                                localDeclStrs = "\n! BEGIN local decsl !\n"++(miniPPD decls)++"\n! END of local decls !\n"
     in
-        (localVarsStr,localDeclStrs)
+        (localVarsStr,localDeclStrs,paramDeclStrs)
         
 getLocalDeclStrs_OLD :: [VarName Anno] -> Fortran Anno -> [String] -> String -> String -> (String,String)
 getLocalDeclStrs_OLD allArgs fortran originalLines tabs kernelName =
@@ -853,6 +872,7 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
                                                                             ++ "\n"
                                                                             -- ++ allArgsStr
                                                                             -- ++ origArgsStr
+                                                                            ++ paramDeclStrs
                                                                             ++ missingArgsStr
                                                                             ++ missingArgDeclsStr
                                                                             ++ tabs ++ localVarsStr
@@ -948,7 +968,7 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
                                                 origArgsStr = tabs ++ "ORIG ARGS USED IN LOOP BODY: "++ ( intercalate "," loopkernel_args_strs)++"\n"
                                                 missingArgs_strs = filter (\arg -> not (arg `elem` allArgs_strs)) loopkernel_args_strs
                                                 missingArgs = map (\arg -> (VarName nullAnno arg)) missingArgs_strs
-                                                (localVarsStr,localDeclStrs) = getLocalDeclStrs (allArgs++missingArgs++reductionVarNames) orig_decls_stmts originalLines tabs kernelName
+                                                (localVarsStr,localDeclStrs,paramDeclStrs) = getLocalDeclStrs (allArgs++missingArgs++reductionVarNames) orig_decls_stmts originalLines tabs kernelName
                                                 (missingArgsStr,missingArgDeclsStr) = getMissingArgDeclStrs missingArgs_strs originalLines tabs
                                                 -- WV: declarations for _range and _rel
                                                 range_rel_decls_str = generateRangeRelDecls l tabs --  we can do this because they *must* be integers                                                
@@ -1026,7 +1046,13 @@ matchVarNameInDecl var_name line = let
         decl_var_name = last (words line) 
     in 
         decl_var_name == var_name
-      
+ 
+matchParameterDecl :: String -> Bool
+matchParameterDecl line  = let
+        chunks = words $ filter (/=',') line
+    in
+        "parameter" `elem` chunks
+        
 --    Function used during host code generation to produce call to OpenCL kernel.
 synthesiseKernelCall :: (Program Anno, String) -> String -> Fortran Anno -> String
 synthesiseKernelCall ([], _) _  _ = "DUMMY synthesiseKernelCall"
@@ -1087,7 +1113,7 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLReduce anno src r w l rv fo
                                                             ++ tabs ++ "call runOcl(oclGlobalRange,oclLocalRange,exectime)\n"
                                                             ++ tabs ++ "! call " ++ kernelName
                                                             ++ bufferReads -- WV clearly one of these is redundant
-                                                            ++ bufferReads_rv 
+--                                                            ++ bufferReads_rv 
                                                             ++ "\n"
             where 
 
@@ -1112,8 +1138,11 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLReduce anno src r w l rv fo
                 stateName = generateStateName kernelName
 
                 bufferWrites = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Write") (readDecls ++ generalDecls ++ [statePtrDecl]))
-                bufferReads = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Read") (writtenDecls ++ generalDecls))
-                bufferReads_rv = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Read") (global_reductionArraysDecls))
+                -- bufferReads = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Read") (writtenDecls ++ generalDecls))
+                -- bufferReads_rv = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Read") (global_reductionArraysDecls))
+                -- make the declarations unique
+                uniqueDecls = nub (writtenDecls ++ generalDecls ++ global_reductionArraysDecls)
+                bufferReads = unlines (map (synthesiseBufferAccess tabs "Read") uniqueDecls)
 
                 (readDecls, writtenDecls, generalDecls) = generateKernelDeclarations progAst (OpenCLReduce anno src r w l rv fortran)
 

@@ -81,7 +81,8 @@ main = do
     -- < STEP 3 : Construct subroutine AST lists>
     let parsedSubroutines' = constructSubroutineTable (zip parsedPrograms filenames)
     let subroutineNames = DMap.keys parsedSubroutines'
-    let parsedSubroutines = addToSubroutineTable (parsedMain,mainFilename) parsedSubroutines'
+    let parsedSubroutines = parsedSubroutines'
+--    let parsedSubroutines = addToSubroutineTable (parsedMain,mainFilename) parsedSubroutines' -- FIXME: empty list error
     
     -- < STEP 4 : Parallelise the loops >
     -- WV: this is the equivalent of calling a statefull pass on every subroutine.
