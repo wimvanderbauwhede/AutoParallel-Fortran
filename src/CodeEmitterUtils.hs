@@ -37,14 +37,44 @@ hostModuleName moduleName = moduleName ++ "_host"
 
 --    Function takes a list of lines from the original source and an object representing a range of line numbers and reproduces the original code
 --    in the range of those line numbers.
-extractOriginalCode :: String -> [String] -> SrcSpan -> String
-extractOriginalCode tabs originalLines src 
+--    WV: is there no easier way to split a list? Seems to me it is simply drop lineStart $ take lineEnd.
+--    e.g. 50 lines. lineStart = line 10, lineEnd= line 20
+--    then we have drop 10 $ take 20
+{-    
+extractOriginalCode :: [String] -> SrcSpan -> String
+extractOriginalCode originalLines srcspan 
     | length originalLines > 0 = let
-                        ((SrcLoc f lineStart columnStart), (SrcLoc _ lineEnd columnEnd)) = src
+                        ((SrcLoc f lineStart columnStart), (SrcLoc _ lineEnd columnEnd)) = srcspan
+                        ls1 = unlines $ drop (lineStart - 1) $ take lineEnd originalLines
+                        ls2 = if (lineEnd < length originalLines && lineStart < length originalLines) 
+                                then
+                                    foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [lineStart..lineEnd]
+                                else   (  (show lineEnd) ++ "<>" ++ (show (length originalLines))++";"++ (show lineStart ) ++ "<>"++(show ( length originalLines)))
                  in
-                            foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [lineStart..lineEnd]
+                    ls1
+--                    if (ls1 == ls2) then ls1 else error ("Strings differ <" ++ ls1 ++ "> <> <" ++ ls2 ++ ">")
+    | otherwise = ""                        
+-}
+
+extractOriginalCode_Offset :: (Int,Int) -> [String] -> SrcSpan ->  String
+extractOriginalCode_Offset (offStart,offEnd) originalLines srcspan 
+    | length originalLines > 0 = let
+                        ((SrcLoc f lineStart columnStart), (SrcLoc _ lineEnd columnEnd)) = srcspan
+                        ls1 = unlines $ drop ((lineStart+offStart) - 1) $ take (lineEnd+offEnd) originalLines
+--                        ls2= foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [lineStart+offStart..lineEnd+offEnd]
+                        ls2 = if (lineEnd+offEnd <= length originalLines && lineStart+offStart <= length originalLines) 
+                                then
+                                    foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [lineStart+offStart..lineEnd+offEnd]
+                                else   (  (show (lineEnd+offEnd)) ++ "<>" ++ (show (length originalLines))++";"++ (show (lineStart+offStart) ) ++ "<>"++(show ( length originalLines)))
+                         
+                 in
+                    ls1
+--                    if (ls1 == ls2) then ls1 else error ("Strings differ <" ++ ls1 ++ "> <> <" ++ ls2 ++ ">")
     | otherwise = ""                        
 
+extractOriginalCode_Offset1 = extractOriginalCode_Offset (0,-1)
+    
+extractOriginalCode  = extractOriginalCode_Offset (0,0)
 
 scalarPointerVar :: VarName Anno -> Expr Anno
 scalarPointerVar varname = generateVar (scalarPointerVarName varname)
@@ -209,7 +239,7 @@ extractDeclaration_varname' varname decl = []
 getOriginalDeclaration :: [String] -> VarName Anno -> Program Anno -> Maybe(String)
 getOriginalDeclaration originalLines varname program = case declSrc_list of
                                                         [] -> Nothing
-                                                        _ -> Just (extractOriginalCode "" originalLines declSrc)
+                                                        _ -> Just (extractOriginalCode originalLines declSrc)
             where 
                 declSrc_list = everything (++) (mkQ [] (extractDeclaration_varnameSrcSpan varname)) program
                 declSrc = head declSrc_list

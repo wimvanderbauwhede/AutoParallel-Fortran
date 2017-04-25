@@ -88,7 +88,7 @@ main = do
     -- WV: this is the equivalent of calling a statefull pass on every subroutine.
     let (parallelisedSubroutines, parAnnotations) = foldl (paralleliseProgUnit_foldl parsedSubroutines') (DMap.empty, []) subroutineNames                 
 
-    -- < STEP 5 : Try to fuse the parallelised loops as much as possible >    
+    -- < STEP 5 : Try to fuse the parallelised loops as much as possible (on a per-subroutine basis) >    
     -- (SubroutineTable, [(String, String)])
     let (combinedKernelSubroutines, combAnnotations) = foldl (combineKernelProgUnit_foldl loopFusionBound) (parallelisedSubroutines, []) subroutineNames
 

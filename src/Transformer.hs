@@ -45,6 +45,7 @@ paralleliseProgUnit_foldl
                     LoopAnalysis::paralleliseLoop_map
                 paralleliseLoop_reduce
                     LoopAnalysis::analyseLoop_reduce
+                paralleliseLoop_reduceWithOuterIteration    
 
 This works on a full subroutine. So in principle after this is done, the var decls should be fine.
 data SubroutineTable = DMap.Map String (ProgUnit Anno, String)
@@ -92,6 +93,8 @@ isolateAndParalleliseForLoops filename subTable accessAnalysis inp = case inp of
 --    nodes or the original sub-tree annotated with parallelisation errors. Attempts to determine whether the loop is a 'map', then checks
 --    for whether it's a 'reduce'. Finally, it checks whether the loop is a reduction with an outer iteration. If any of these structures
 --     are detected, the AST node is tranformed appropriately and placed back into the AST.
+--     WV: This is restrictive because the inner loop nest could be a map as well, or even a combination
+--     
 paralleliseLoop :: String -> [VarName Anno] -> VarAccessAnalysis -> SubroutineTable -> Fortran Anno -> Fortran Anno
 paralleliseLoop filename loopVars accessAnalysis subTable loop = transformedAst
                                 where
@@ -231,8 +234,9 @@ paralleliseLoop_reduce filename loop loopVarNames nonTempVars prexistingVars dep
 --    A reduction with outer iteration occurs when a parallel reduction occurs in some nested loops but requires values from some outer, iterative loop. More advanced loop carried dependency
 --    analysis caused this to be necessary.
 paralleliseLoop_reduceWithOuterIteration :: String -> Fortran Anno -> Maybe(Fortran Anno) -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> (Bool, Fortran Anno)
-paralleliseLoop_reduceWithOuterIteration filename loop Nothing loopVarNames nonTempVars prexistingVars dependencies accessAnalysis     |    nextFor_maybe == Nothing = (False, loop)
-                                                                                                                             |    otherwise = (reduceWithOuterIterationAttempt_bool, newAst)
+paralleliseLoop_reduceWithOuterIteration filename loop Nothing loopVarNames nonTempVars prexistingVars dependencies accessAnalysis     
+    |    nextFor_maybe == Nothing = (False, loop)                                                                                                                             
+    |    otherwise = (reduceWithOuterIterationAttempt_bool, newAst)
         where
             nextFor_maybe = extractFirstChildFor loop
             (priorFortran, nextFor, followingFortran) = case nextFor_maybe of 
@@ -242,7 +246,7 @@ paralleliseLoop_reduceWithOuterIteration filename loop Nothing loopVarNames nonT
             newAst = case reduceWithOuterIterationAttempt_ast of
                         For a1 a2 a3 a4 a5 a6 fortran -> For a1 a2 a3 a4 a5 a6 (appendFortran_recursive (appendFortran_recursive followingFortran fortran) priorFortran)
 
-paralleliseLoop_reduceWithOuterIteration filename iteratingLoop (Just(parallelLoop)) loopVarNames nonTempVars prexistingVars dependencies accessAnalysis 
+paralleliseLoop_reduceWithOuterIteration filename iteratingLoop (Just parallelLoop) loopVarNames nonTempVars prexistingVars dependencies accessAnalysis 
                 |     errors_reduce' == nullAnno     =    
                     (True, appendAnnotation reduceWithOuterIterationCode (compilerName ++ ": Reduction with outer iteration at " ++ errorLocationFormatting (srcSpan iteratingLoop) ++ " with parallal loop at "  ++ errorLocationFormatting (srcSpan parallelLoop)) "")
                 |    nextFor_maybe /= Nothing     =     

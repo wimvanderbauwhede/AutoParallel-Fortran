@@ -89,11 +89,44 @@ miniPPFT stmt tab =  case stmt of
                  Print _ _ expr exprs -> tab++ "print *, "++(miniPP expr)++(intercalate "," (map miniPP exprs))
                  NullStmt _ _ -> "" -- "! NullStmt"
                  Continue _ _ -> tab++"continue"
-                 OpenCLMap _ _ vrs  vws lvars stmt1  -> "! OpenCLMap "++(show (vrs,  vws, lvars))++"\n"++(miniPPFT stmt1 tab)
-                 OpenCLReduce _ _ vrs vws lvars rvarexprs stmt1 -> "! OpenCLReduce "++(show (vrs,  vws, lvars, rvarexprs))++"\n"++(miniPPFT stmt1 tab) 
+                 OpenCLMap _ _ vrs  vws lvars stmt1  -> "! OpenCLMap ( "++(showVarLst vrs)++","++(  showVarLst vws)++","++( showLVarLst lvars)++")\n"++(miniPPFT stmt1 tab)
+                 OpenCLReduce _ _ vrs vws lvars rvarexprs stmt1 -> "! OpenCLReduce ( "++(showVarLst vrs)++","++(  showVarLst vws)++","++( showLVarLst lvars)++","++ (showRVarLst rvarexprs)++")\n"++(miniPPFT stmt1 tab) 
                  Return _ _ expr -> tab++"return "++(miniPP expr)
                  _ -> "! UNSUPPORTED in miniPPF ! "++(show stmt)
-                 
+
+showVar (VarName _ v) = v
+showVarLst lst = show $ map showVar lst
+showLVar (VarName _ v, e1, e2,e3 ) = "("++v++","++(miniPP e1)++","++(miniPP e2)++","++(miniPP e3)++")"
+showLVarLst lst = show $ map showLVar lst
+
+showRVar (VarName _ v, e1) = "("++v++","++(miniPP e1)++")"
+showRVarLst lst = show $ map showRVar lst
+
+
+{-
+                | OpenCLMap p SrcSpan                   -- Node to represent the data needed for an OpenCL map kernel
+                  [VarName p]                           -- List of arguments to kernel that are READ
+                  [VarName p]                           -- List of arguments to kernel that are WRITTEN
+                  [(VarName p, Expr p, Expr p, Expr p)] -- Loop variables of nested maps
+                  (Fortran p)                           -- Body of kernel code
+                | OpenCLReduce p SrcSpan
+                  [VarName p]                           -- List of arguments to kernel that are READ
+                  [VarName p]                           -- List of arguments to kernel that are WRITTEN
+                  [(VarName p, Expr p, Expr p, Expr p)] -- Loop variables of nested reductions
+                  [(VarName p, Expr p)]                 -- List of variables that are considered 'reduction variables' along with their initial values
+                  (Fortran p)                           -- Body of kernel code
+                | OpenCLSeq p SrcSpan
+                  [VarName p]                           -- List of arguments to kernel that are READ
+                  [VarName p]                           -- List of arguments to kernel that are WRITTEN
+                  (Fortran p)                           -- Body of kernel code
+                | OpenCLBufferRead p SrcSpan
+                  (VarName p)                           -- Name of var that buffer is read to
+                | OpenCLBufferWrite p SrcSpan
+                  (VarName p)                           -- Name of var that buffer is written to
+                  deriving (Show, Functor, Typeable, Data, Eq)
+-}                  
+
+
 miniPP expr = case expr of
     (Con _ _ s) -> s
     (ConL p _ _ s) -> s

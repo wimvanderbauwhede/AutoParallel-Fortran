@@ -33,11 +33,18 @@ nullAnno = DMap.empty
 parseFile :: [String] -> Bool -> String -> IO (Program Anno, [String])
 parseFile cppArgs fixedForm filename = do 
     let dFlagList = if length cppArgs > 0
-        then foldl (\accum item -> accum ++ ["-D", item]) [] cppArgs
+        then foldl (\accum item -> accum ++ ["-D"++item]) [] cppArgs
         else  []
-    let dFlagStr = if length dFlagList == 0 then  "-D__GO_GO_7188__" else unwords dFlagList    
+    let dFlagStr = if length dFlagList == 0 then  "" else unwords dFlagList    
+    let cpp_cmd = "cpp -P "++dFlagStr++ " "++filename
+    putStrLn cpp_cmd
+--    print dFlagStr
 --                                let dFlagList = foldl (\accum item -> accum ++ ["-D"++ item]) [] cppArgs
-    inp <- readProcess "cpp"  ["-P",dFlagStr,filename] "" 
+--    inp <- readProcess ("cpp -P "++dFlagStr)  [] "" -- (["-P "]++dFlagList++[filename]) "" 
+    
+    inp <- readCreateProcess (shell cpp_cmd) ""
+--    (_, Just inp, _, _) <- createProcess (proc "cpp"  (["-P "]++dFlagList++[filename]) ){ std_out = CreatePipe }
+--    putStr inp    
 --                                putStrLn filename
     let
         contentLines = lines inp

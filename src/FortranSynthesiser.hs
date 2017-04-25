@@ -114,14 +114,18 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
             ((SrcLoc _ block_ls _), _) = blockSrc
             (nonGeneratedHeaderSrc, nonGeneratedFooterSrc) = getSrcSpanNonIntersection src blockSrc
 
-            ((SrcLoc _ nonGeneratedHeader_ls _), (SrcLoc _ nonGeneratedHeader_le _)) = nonGeneratedHeaderSrc
-            nonGeneratedHeaderCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedHeader_ls..nonGeneratedHeader_le-1]
-            
-            ((SrcLoc _ nonGeneratedFooter_ls _), (SrcLoc _ nonGeneratedFooter_le _)) = nonGeneratedFooterSrc
-            nonGeneratedFooterCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedFooter_ls..nonGeneratedFooter_le-1]
+--            ((SrcLoc _ nonGeneratedHeader_ls _), (SrcLoc _ nonGeneratedHeader_le _)) = nonGeneratedHeaderSrc
+--            nonGeneratedHeaderCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedHeader_ls..nonGeneratedHeader_le-1]
+            nonGeneratedHeaderCode = extractOriginalCode_Offset1 originalLines nonGeneratedHeaderSrc
 
+            
+--            ((SrcLoc _ nonGeneratedFooter_ls _), (SrcLoc _ nonGeneratedFooter_le _)) = nonGeneratedFooterSrc
+--            nonGeneratedFooterCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedFooter_ls..nonGeneratedFooter_le-1]
+            nonGeneratedFooterCode = extractOriginalCode_Offset1 originalLines nonGeneratedFooterSrc
             containedProgUnitCode = foldl (\accum item -> accum ++ (produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines item)) "" progUnits
-            nonGeneratedBlockCode_indent = extractIndent (originalLines!!(block_ls-1))
+            nonGeneratedBlockCode_indent 
+                | length originalLines < block_ls = "      " -- 
+                | otherwise = extractIndent (originalLines!!(block_ls-1))
 
             maybeOclInitCall = Just (Call nullAnno nullSrcSpan (generateVar (VarName nullAnno ((initModuleName superKernelName)))) (ArgList nullAnno (NullExpr nullAnno nullSrcSpan)))
 
@@ -138,10 +142,12 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
             
             (nonGeneratedHeaderSrc, _) = getSrcSpanNonIntersection src firstProgUnitSrc
             (_, nonGeneratedFooterSrc) = getSrcSpanNonIntersection src lastProgUnitSrc
-            ((SrcLoc _ nonGeneratedHeader_ls _), (SrcLoc _ nonGeneratedHeader_le _)) = nonGeneratedHeaderSrc
-            nonGeneratedHeaderCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedHeader_ls..nonGeneratedHeader_le-1]
-            ((SrcLoc _ nonGeneratedFooter_ls _), (SrcLoc _ nonGeneratedFooter_le _)) = nonGeneratedFooterSrc
-            nonGeneratedFooterCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedFooter_ls..nonGeneratedFooter_le-1]
+--            ((SrcLoc _ nonGeneratedHeader_ls _), (SrcLoc _ nonGeneratedHeader_le _)) = nonGeneratedHeaderSrc
+--            nonGeneratedHeaderCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedHeader_ls..nonGeneratedHeader_le-1]
+            nonGeneratedHeaderCode = extractOriginalCode_Offset1 originalLines nonGeneratedHeaderSrc
+--            ((SrcLoc _ nonGeneratedFooter_ls _), (SrcLoc _ nonGeneratedFooter_le _)) = nonGeneratedFooterSrc
+--            nonGeneratedFooterCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedFooter_ls..nonGeneratedFooter_le-1]
+            nonGeneratedFooterCode = extractOriginalCode_Offset1 originalLines nonGeneratedFooterSrc
             containedProgUnitCode = foldl (\accum item -> accum ++ (produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines item)) "" progUnits
 
 produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines (Sub _ src _ (SubName _ subroutineName) _ block) =  
@@ -162,17 +168,22 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
             blockSrc = srcSpan block
             (nonGeneratedHeaderSrc, nonGeneratedFooterSrc) = getSrcSpanNonIntersection src blockSrc
 
-            ((SrcLoc _ nonGeneratedHeader_ls _), (SrcLoc _ nonGeneratedHeader_le _)) = nonGeneratedHeaderSrc
-            nonGeneratedHeaderCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedHeader_ls..nonGeneratedHeader_le-1]
+--            ((SrcLoc _ nonGeneratedHeader_ls _), (SrcLoc _ nonGeneratedHeader_le _)) = nonGeneratedHeaderSrc
+--            nonGeneratedHeaderCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedHeader_ls..nonGeneratedHeader_le-1]
+            nonGeneratedHeaderCode = extractOriginalCode_Offset1 originalLines nonGeneratedHeaderSrc
 
-            ((SrcLoc _ nonGeneratedFooter_ls _), (SrcLoc _ nonGeneratedFooter_le _)) = nonGeneratedFooterSrc
-            nonGeneratedFooterCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedFooter_ls..nonGeneratedFooter_le-1]
+--            ((SrcLoc _ nonGeneratedFooter_ls _), (SrcLoc _ nonGeneratedFooter_le _)) = nonGeneratedFooterSrc
+--            nonGeneratedFooterCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedFooter_ls..nonGeneratedFooter_le-1]
+            nonGeneratedFooterCode = extractOriginalCode_Offset1 originalLines nonGeneratedFooterSrc
 
-            ((SrcLoc _ block_ls _), (SrcLoc _ _ _)) = blockSrc
-            ((SrcLoc _ fortran_ls _), (SrcLoc _ _ _)) = firstFortranSrc
-            nonGeneratedBlockCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [block_ls..fortran_ls-1]
-
-            nonGeneratedBlockCode_indent = extractIndent (originalLines!!(fortran_ls-1))
+            (src_b@(SrcLoc _ block_ls _), (SrcLoc _ _ _)) = blockSrc
+            (src_e@(SrcLoc _ fortran_ls _), (SrcLoc _ _ _)) = firstFortranSrc
+            srcspan = (src_b,src_e)
+--            nonGeneratedBlockCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [block_ls..fortran_ls-1]
+            nonGeneratedBlockCode = extractOriginalCode_Offset1 originalLines srcspan
+            nonGeneratedBlockCode_indent 
+                | length originalLines < fortran_ls = "      " -- 
+                | otherwise = extractIndent (originalLines!!(fortran_ls-1))
 
             argTranslation = getSubroutineArgumentTranslation argTranslationSubroutines subroutineName
 
@@ -220,12 +231,16 @@ produceCodeBlock allKernelArgsMap argTranslation prog tabs originalLines maybePr
             (nonGeneratedHeaderSrc, nonGeneratedFooterSrc) = getSrcSpanNonIntersection src fortranSrc
 
             ((SrcLoc _ nonGeneratedHeader_ls _), (SrcLoc _ nonGeneratedHeader_le _)) = nonGeneratedHeaderSrc
-            nonGeneratedHeaderCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedHeader_ls..nonGeneratedHeader_le-1]
+--            nonGeneratedHeaderCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedHeader_ls..nonGeneratedHeader_le-1]
+            nonGeneratedHeaderCode = extractOriginalCode_Offset1 originalLines nonGeneratedHeaderSrc
             
             ((SrcLoc _ nonGeneratedFooter_ls _), (SrcLoc _ nonGeneratedFooter_le _)) = nonGeneratedFooterSrc
-            nonGeneratedFooterCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedFooter_ls+1..nonGeneratedFooter_le-1]
+--            nonGeneratedFooterCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedFooter_ls+1..nonGeneratedFooter_le-1]
+            nonGeneratedFooterCode = extractOriginalCode_Offset1 originalLines nonGeneratedFooterSrc
 
-            nonGeneratedBlockCode_indent = extractIndent (originalLines!!(fortran_ls-1))
+            nonGeneratedBlockCode_indent 
+                | length originalLines < fortran_ls = "      " -- 
+                | otherwise = extractIndent (originalLines!!(fortran_ls-1))
 
             (sizeDeclarations, shapeStatements) = synthesiseSizeStatements_kernel nonGeneratedBlockCode_indent (fst prog)
             (bufferDeclarationStatements, loadBufferStatements) = synthesiseBufferLoads_kernel nonGeneratedBlockCode_indent allKernelArgsMap argTranslation block
@@ -260,7 +275,7 @@ produceCode_fortran prog tabs originalLines codeSeg = case codeSeg of
                         FSeq _ _ fortran1 fortran2 -> (mkQ "" (produceCode_fortran prog tabs originalLines) fortran1) ++ (mkQ "" (produceCode_fortran prog tabs originalLines) fortran2)
                         _ ->     case anyChildGenerated codeSeg || isGenerated codeSeg of
                                     True -> foldl (++) tabs (gmapQ (mkQ "" (produceCode_fortran prog "" originalLines)) codeSeg)
-                                    False -> extractOriginalCode tabs originalLines (srcSpan codeSeg)
+                                    False -> extractOriginalCode originalLines (srcSpan codeSeg)
 
 synthesiseInitModule :: String -> String ->  [(Program Anno, String)] -> KernelArgsIndexMap -> [(String, String)] -> SubroutineTable -> String
 synthesiseInitModule moduleName superKernelName programs allKernelArgsMap kernels orig_subrecs =     
@@ -516,7 +531,7 @@ synthesiseUse prog tabs originalLines (Use _ (moduleName, _) _ _) = tabs ++ "use
 
 synthesiseCall :: (Program Anno, String) -> String -> [String] -> Fortran Anno -> String
 synthesiseCall prog tabs originalLines (Call anno src expr args)    |    partialGenerated = prefix ++ tabs ++ "call " ++ (outputExprFormatting expr) ++ (synthesiseArgList args) ++ suffix ++ "\n"
-                                                                    |    otherwise = prefix ++ (extractOriginalCode tabs originalLines src) ++ suffix
+                                                                    |    otherwise = prefix ++ (extractOriginalCode originalLines src) ++ suffix
         where
             partialGenerated = anyChildGenerated codeSeg || isGenerated codeSeg
             codeSeg = (Call anno src expr args)
@@ -551,7 +566,7 @@ synthesiseFor :: (Program Anno, String) -> String -> [String] -> Fortran Anno ->
 synthesiseFor prog tabs originalLines (For anno src varname expr1 expr2 expr3 fort)     |    partialGenerated = tabs ++ "do " ++ (varNameStr varname) ++ "=" ++ outputExprFormatting expr1 
                                                                                                 ++ ", " ++ outputExprFormatting expr2 ++ (if expr3isOne then "" else outputExprFormatting expr3)
                                                                                                 ++ "\n" ++ (mkQ "" (produceCode_fortran prog (tabs ++ tabInc) originalLines) fort) ++ tabs ++ "end do\n"
-                                                                                        |    otherwise = extractOriginalCode tabs originalLines src
+                                                                                        |    otherwise = extractOriginalCode originalLines src
                                                                     where
                                                                         expr3isOne = case expr3 of
                                                                                         Con _ _ "1" -> True
@@ -561,7 +576,7 @@ synthesiseFor prog tabs originalLines (For anno src varname expr1 expr2 expr3 fo
 
 synthesiseAssg :: (Program Anno, String) -> String -> [String] -> Fortran Anno -> String
 synthesiseAssg prog tabs originalLines (Assg anno src expr1 expr2)    |    partialGenerated = tabs ++ outputExprFormatting expr1 ++ " = " ++ outputExprFormatting expr2 ++ "\n"
-                                                            |    otherwise = extractOriginalCode tabs originalLines src
+                                                            |    otherwise = extractOriginalCode originalLines src
                                             where 
                                                 partialGenerated = isGenerated codeSeg
                                                 codeSeg = Assg anno src expr1 expr2
@@ -572,18 +587,18 @@ synthesiseIf prog tabs originalLines (If anno src expr fortran lst maybeFort)   
                                                                     ++ elseIfFortranStr
                                                                     ++ elseFortranStr
                                                                     ++ tabs ++ "end if\n"
-                                                            |    otherwise = extractOriginalCode tabs originalLines src
+                                                            |    otherwise = extractOriginalCode originalLines src
                                             where 
                                                 partialGenerated = anyChildGenerated codeSeg || isGenerated codeSeg
                                                 codeSeg = If anno src expr fortran lst maybeFort
                                                 mainFortranStr = (mkQ "" (produceCode_fortran prog (tabs ++ tabInc) originalLines) fortran)
                                                 elseIfFortranStr = foldl (synthesisElses prog tabs originalLines) "" lst
                                                 elseFortranStr = case maybeFort of
-                                                                    Just a -> (mkQ "" (produceCode_fortran prog (tabs ++ tabInc) originalLines) a)
+                                                                    Just a -> tabs ++ "else\n" ++ (mkQ "" (produceCode_fortran prog (tabs ++ tabInc) originalLines) a)
                                                                     Nothing -> ""
 
 synthesisElses :: (Program Anno, String) -> String -> [String] -> String -> (Expr Anno, Fortran Anno) -> String
-synthesisElses prog tabs originalLines accum (expr, fortran) = accum ++ tabs ++ "else if(" ++ outputExprFormatting expr ++ ") then\n" 
+synthesisElses prog tabs originalLines accum (expr, fortran) = accum ++ tabs ++ "else if (" ++ outputExprFormatting expr ++ ") then\n" 
                                                                 ++ (mkQ "" (produceCode_fortran prog (tabs ++ tabInc) originalLines) fortran)
                                                                 ++ "\n"
 
@@ -894,29 +909,39 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
                                                                             ++ writtenDeclStr
                                                                             ++ generalDeclStr
                                                                             ++ "\n"
+                                                                            ++ "#if NTH > 1\n"
                                                                             ++ tabs ++ "! Arrays prefixed with \'local_\' should be declared using the \'__local\' modifier in C kernel version\n"
                                                                             ++ workGroup_reductionArraysDeclStr
+                                                                            ++ "#endif\n"
                                                                             ++ local_reductionVarsDeclatationStr
                                                                             ++ "\n"
-                                                                            ++ tabs ++ localIdInitialisation
                                                                             ++ tabs ++ groupIdInitialisation
                                                                             ++ tabs ++ globalIdInitialisation
+                                                                            ++ "#if NTH > 1\n"
+                                                                            ++ tabs ++ localIdInitialisation
                                                                             ++ "\n" ++ tabs ++ "! local_id_fortran and group_id_fortran are used to reconcile the fact that fortran arrays are referenced from 1"
                                                                             ++ "\n" ++ tabs ++ "! not 0 like other OpenCL supporting languages\n"
                                                                             ++ tabs ++ localIdFortranInitialisation
+                                                                            ++ "#endif\n"
                                                                             ++ tabs ++ groupIdFortranInitialisation
-                                                                            ++ tabs ++ localChunkSize_str
+                                                                            ++ "#if NTH > 1\n"
+                                                                            ++ tabs ++ localChunkSize_GPU_str
+                                                                            ++ "#else\n"
+                                                                            ++ tabs ++ localChunkSize_CPU_str
+                                                                            ++ "#endif\n"
                                                                             ++ tabs ++ startPosition_str
                                                                             ++ local_reductionVarsInitStr
                                                                             ++ "\n"
                                                                             ++ (mkQ "" (produceCode_fortran programInfo (tabs) originalLines) workItem_loop)
                                                                             ++ "\n"
+                                                                            ++ "#if NTH > 1\n"
                                                                             ++ workGroup_reductionArraysInitStr
                                                                             ++ "\n"
                                                                             ++ tabs ++ localMemBarrier
                                                                             ++ "\n"
                                                                             ++ local_reductionVarsInitStr
                                                                             ++ (mkQ "" (produceCode_fortran programInfo (tabs) originalLines) workGroup_loop)
+                                                                            ++ "#endif\n"
                                                                             ++ global_reductionArraysAssignmentStr
                                                                             ++ "\n"
                                                                             ++ inTabs ++ "end subroutine " ++ kernelName
@@ -987,14 +1012,21 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
                                                 local_reductionVarsDeclatation = map (\(red, local) -> stripDeclAttrs $ adaptOriginalDeclaration_varname red local prog) (zip reductionVarNames local_reductionVars)
                                                 local_reductionVarsDeclatationStr = synthesiseDecls tabs local_reductionVarsDeclatation
 
-                                                localChunkSize_assg = generateAssgCode 
+                                                localChunkSize_GPU_assg = generateAssgCode 
                                                                             localChunkSize 
                                                                             (generateDivisionExpr
                                                                                 (generateDivisionExpr 
                                                                                     (generateGlobalWorkItemsExpr l)
                                                                                     nthVar)
                                                                                 nunitsVar)
-                                                localChunkSize_str = synthesiseAssg programInfo inTabs originalLines localChunkSize_assg
+                                                -- for CPU, NTH==1
+                                                localChunkSize_CPU_assg = generateAssgCode 
+                                                                            localChunkSize 
+                                                                            (generateDivisionExpr
+                                                                                    (generateGlobalWorkItemsExpr l)
+                                                                                nunitsVar)
+                                                localChunkSize_GPU_str = synthesiseAssg programInfo inTabs originalLines localChunkSize_GPU_assg
+                                                localChunkSize_CPU_str = synthesiseAssg programInfo inTabs originalLines localChunkSize_CPU_assg
 
                                                 startPosition_str = (outputExprFormatting startPosition) ++ " = " ++ (outputExprFormatting localChunkSize) ++
                                                     " * " ++ (outputExprFormatting globalIdVar) ++ "\n"
@@ -1058,10 +1090,11 @@ synthesiseKernelCall :: (Program Anno, String) -> String -> Fortran Anno -> Stri
 synthesiseKernelCall ([], _) _  _ = "DUMMY synthesiseKernelCall"
 synthesiseKernelCall (progAst, filename) tabs (OpenCLMap anno src r w l fortran) = (commentSeparator ("BEGIN " ++ kernelName))
                                                         ++ tabs ++ "oclGlobalRange = " ++ outputExprFormatting globalWorkItems ++ "\n"
+                                                        ++ tabs ++ "oclLocalRange = 0\n" -- means NullRange
                                                         ++ tabs ++ (varNameStr statePtrVarName) ++ "(1) = " ++ stateName ++ "\n"
                                                         ++ tabs ++ bufferWrites ++ "\n"
                                                         ++ tabs ++ "call runOcl(oclGlobalRange,oclLocalRange,exectime)\n"
-                                                        ++ tabs ++ "! call " ++ kernelName
+                                                        ++ tabs ++ "! call " ++ kernelName ++ "\n"
                                                         ++ bufferReads ++ "\n"
             where
                 readArgs = map (varNameStr) (listSubtract r w)

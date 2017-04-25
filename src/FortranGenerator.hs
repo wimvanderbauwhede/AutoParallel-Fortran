@@ -74,9 +74,11 @@ generateRangeVar (VarName anno str) = generateVar (VarName anno (str ++ "_range"
 generateLoopStartAddition :: VarName Anno -> Expr Anno -> Fortran Anno
 generateLoopStartAddition varname start = generateAssgCode (generateVar varname) (generateAdditionExpr (generateRelVar varname) start)
 
+-- WV: I think this is incorrect, requires +1 !    
 generateRangeExpr :: VarName Anno -> Expr Anno -> Expr Anno -> Fortran Anno
-generateRangeExpr varname start end = generateAssgCode (generateRangeVar varname) (generateSubtractionExpr end start)
-
+generateRangeExpr varname start end = generateAssgCode (generateRangeVar varname) (generateAdditionExpr (generateSubtractionExpr end start) one)
+    where
+        one = Con nullAnno nullSrcSpan "1"
 
 -- WV: fixed this because ranges must be defined first
 generateLoopInitialisers :: [(VarName Anno, Expr Anno, Expr Anno, Expr Anno)] -> Expr Anno -> Maybe(Expr Anno) -> [Fortran Anno]

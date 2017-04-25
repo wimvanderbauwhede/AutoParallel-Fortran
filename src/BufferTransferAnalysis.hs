@@ -12,6 +12,8 @@ where
 import Data.Generics (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
 import Data.Maybe                     (fromMaybe)
 import Language.Fortran
+import Warning (warning)
+import MiniPP 
 
 import VarAccessAnalysis             (VarAccessAnalysis, analyseAllVarAccess, getAccessLocationsBeforeSrcSpan, getAccessLocationsInsideSrcSpan, getAccessesBetweenSrcSpans, 
                                     getAccessesBetweenSrcSpansIgnore, getAccessLocationsAfterSrcSpan)
@@ -41,7 +43,8 @@ optimiseBufferTransfers subTable argTranslations (mainAst,mainOrigLines) = -- er
             flattenedAst = flattenSubroutineAppearances subTable argTranslations mainAst
             flattenedVarAccessAnalysis = analyseAllVarAccess flattenedAst
             optimisedFlattenedAst = optimseBufferTransfers_program flattenedVarAccessAnalysis flattenedAst
-
+            -- WV: up to here, the press kernel still has nrd as an argument to be written
+            -- WV: The next operation is only analysis, no transformation
             varAccessAnalysis = analyseAllVarAccess mainAst
             kernels_optimisedBetween = extractKernels optimisedFlattenedAst
             
@@ -51,7 +54,7 @@ optimiseBufferTransfers subTable argTranslations (mainAst,mainOrigLines) = -- er
             (kernels_withoutInitOrTearDown, initWrites, varsOnDeviceAfterOpenCL) = stripInitAndTearDown flattenedVarAccessAnalysis kernelRangeSrc kernels_optimisedBetween
 
             readConsiderationSrc = kernelRangeSrc
-
+            -- WV: So I guess here is where it goes wrong, but need to grok the previous part as well
             (bufferWritesBefore, bufferWritesAfter) = generateBufferInitPositions initWrites mainAst kernelStartSrc kernelEndSrc varAccessAnalysis
             (bufferReadsBefore, bufferReadsAfter) = generateBufferReadPositions varsOnDeviceAfterOpenCL mainAst kernelStartSrc kernelEndSrc varAccessAnalysis
 
@@ -362,7 +365,7 @@ optimseBufferTransfers_program varAccessAnalysis ast = ast_optimisedBetweenKerne
         where
             ast_optimisedBetweenKernels = compareKernelsInOrder varAccessAnalysis kernels ast
             kernels = extractKernels ast
-            kernels_optimisedBetween = extractKernels ast_optimisedBetweenKernels
+--            kernels_optimisedBetween = extractKernels ast_optimisedBetweenKernels
 
 findEarliestInitialisationSrcSpan :: VarAccessAnalysis -> SrcSpan -> [VarName Anno] -> SrcSpan
 findEarliestInitialisationSrcSpan varAccessAnalysis kernelsRange initWrites = lastWrite
@@ -421,13 +424,12 @@ eliminateBufferPairsKernel_recurse varAccessAnalysis firstKernel kernels ignored
             (resursiveCall_firstKernel, resursiveCall_kernels) = eliminateBufferPairsKernel_recurse varAccessAnalysis newFirstKernel (tail kernels) ((srcSpan secondKernel):ignoredSpans)
 
 eliminateBufferPairsKernel :: VarAccessAnalysis -> [SrcSpan] -> Fortran Anno -> Fortran Anno -> (Fortran Anno, Fortran Anno)
-eliminateBufferPairsKernel varAccessAnalysis ignoredSpans firstKernel secondKernel = -- error debugMessage 
-                                                                                     (newFirstKernel, newSecondKernel)
+eliminateBufferPairsKernel varAccessAnalysis ignoredSpans firstKernel secondKernel = warning (newFirstKernel, newSecondKernel) debugMessage
         where
-            debugMessage = "FirstKernel:\n" ++ (show firstKernel) ++ "\n\n SecondKernel:\n" ++ (show secondKernel)
-                            ++ "\n\n readsBetween:\n" ++ (show readsBetween) ++ "\n\n writesBetween:\n" ++ (show writesBetween)
-                            ++ "\n\n firstBufferReads:\n" ++ (show firstBufferReads) ++ "\n\n newFirstBufferReads:\n" ++ (show newFirstBufferReads)
-                            ++ "\n\n secondBufferWrites:\n" ++ (show secondBufferWrites) ++ "\n\n newSecondBufferWrites:\n" ++ (show newSecondBufferWrites)    
+            debugMessage = "\n\nNewFirstKernel:\n" ++ (miniPPF newFirstKernel) ++ "\n\nNewSecondKernel:\n" ++ (miniPPF newSecondKernel)
+--                            ++ "\n\n readsBetween:\n" ++ (show $ map (\(VarName _ v) -> v) readsBetween) ++ "\n\n writesBetween:\n" ++ (show $ map (\(VarName _ v) -> v) writesBetween)
+--                            ++ "\n\n firstBufferReads:\n" ++ (show $ map (\(VarName _ v) -> v) firstBufferReads) ++ "\n\n newFirstBufferReads:\n" ++ (show $ map (\(VarName _ v) -> v) newFirstBufferReads)
+--                            ++ "\n\n secondBufferWrites:\n" ++ (show $ map (\(VarName _ v) -> v) secondBufferWrites) ++ "\n\n newSecondBufferWrites:\n" ++ (show $ map (\(VarName _ v) -> v) newSecondBufferWrites)    
 
             firstKernel_src = srcSpan firstKernel
             secondKernel_src = srcSpan secondKernel
