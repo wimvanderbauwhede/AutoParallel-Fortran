@@ -1,13 +1,18 @@
-module MiniPP (miniPPF, miniPP, miniPPO, miniPPD)
+module MiniPP (miniPPF, miniPP, miniPPO, miniPPD, showVarLst )
 where
 import Language.Fortran
 import LanguageFortranTools
 import Data.List
 import Data.Char
 
+{-
+WV: I know Language.Fortran provides a pretty-printer but getting it to work on the recent version of ghc is too much work so I wrote my own, workmanlike, no fancy features at all.    
+-}
+
+
 miniPPP progunit = show progunit 
 
-miniPPB (Block _ useblock implicit _ decl fortran) = "BOOM!"
+miniPPB (Block _ useblock implicit _ decl fortran) = "BOOM!" -- TODO
 
 miniPPAttr attr = case attr of
     Parameter _ -> "parameter"
@@ -18,19 +23,6 @@ miniPPAttr attr = case attr of
             InOut _ -> "inout"
         ) ++ ")"
     _ -> showAttr attr
-{-    
-    Allocatable p
-    External p
-    Intrinsic p
-    Optional p
-    Pointer p
-    Save p
-    Target p
-    Volatile p
-    Public p
-    Private p
-    Sequence p
--}
 
 showAttr attr = let
         attr_show = map toLower (show attr)
@@ -66,6 +58,7 @@ miniPPD decl  = case decl of
         DSeq _ d1 d2 -> (miniPPD d1)++"\n"++(miniPPD d2)
         _ ->  "! UNSUPPORTED in miniPPD! "++(show decl)
 
+miniPPF :: Fortran Anno -> String        
 miniPPF stmt = miniPPFT stmt "    "
 
 miniPPFT :: Fortran Anno -> String -> String
@@ -89,18 +82,19 @@ miniPPFT stmt tab =  case stmt of
                  Print _ _ expr exprs -> tab++ "print *, "++(miniPP expr)++(intercalate "," (map miniPP exprs))
                  NullStmt _ _ -> "" -- "! NullStmt"
                  Continue _ _ -> tab++"continue"
-                 OpenCLMap _ _ vrs  vws lvars stmt1  -> "! OpenCLMap ( "++(showVarLst vrs)++","++(  showVarLst vws)++","++( showLVarLst lvars)++")\n"++(miniPPFT stmt1 tab)
-                 OpenCLReduce _ _ vrs vws lvars rvarexprs stmt1 -> "! OpenCLReduce ( "++(showVarLst vrs)++","++(  showVarLst vws)++","++( showLVarLst lvars)++","++ (showRVarLst rvarexprs)++")\n"++(miniPPFT stmt1 tab) 
+                 OpenCLMap _ _ vrs  vws lvars ilvars stmt1  -> "! OpenCLMap ( "++(showVarLst vrs)++","++(  showVarLst vws)++","++( showLoopVarLst lvars)++","++( showVarLst ilvars)++") {\n"++(miniPPFT stmt1 tab)++"\n"++tab++"}" -- WV20170426
+                 OpenCLReduce _ _ vrs vws lvars ilvars rvarexprs stmt1 -> "! OpenCLReduce ( "++(showVarLst vrs)++","++(  showVarLst vws)++","++( showLoopVarLst lvars)++","++( showVarLst ilvars)++","++ (showReductionVarLst rvarexprs)++") {\n"++(miniPPFT stmt1 tab) ++"\n"++tab++"}" -- WV20170426
                  Return _ _ expr -> tab++"return "++(miniPP expr)
                  _ -> "! UNSUPPORTED in miniPPF ! "++(show stmt)
 
 showVar (VarName _ v) = v
 showVarLst lst = show $ map showVar lst
-showLVar (VarName _ v, e1, e2,e3 ) = "("++v++","++(miniPP e1)++","++(miniPP e2)++","++(miniPP e3)++")"
-showLVarLst lst = show $ map showLVar lst
-
-showRVar (VarName _ v, e1) = "("++v++","++(miniPP e1)++")"
-showRVarLst lst = show $ map showRVar lst
+showLoopVar (VarName _ v, e1, e2,e3 ) = "("++v++","++(miniPP e1)++","++(miniPP e2)++","++(miniPP e3)++")"
+-- L for loop
+showLoopVarLst lst = show $ map showLoopVar lst
+-- R for reduction
+showReductionVar (VarName _ v, e1) = "("++v++","++(miniPP e1)++")"
+showReductionVarLst lst = show $ map showReductionVar lst
 
 
 {-

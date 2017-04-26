@@ -175,7 +175,7 @@ generateLoopIterationsExpr (var, start, end, step) = Bin nullAnno nullSrcSpan (D
 
 generateKernelDeclarations :: Program Anno -> Fortran Anno -> ([Decl Anno], [Decl Anno], [Decl Anno])
 generateKernelDeclarations [] _ = ([],[],[])
-generateKernelDeclarations prog (OpenCLMap _ _ r w _ _) = (readDecls, writtenDecls, generalDecls)
+generateKernelDeclarations prog (OpenCLMap _ _ r w _ _ _) = (readDecls, writtenDecls, generalDecls) -- WV20170426
                 where
                     readArgs = listSubtract r w
                     writtenArgs = listSubtract w r
@@ -184,7 +184,7 @@ generateKernelDeclarations prog (OpenCLMap _ _ r w _ _) = (readDecls, writtenDec
                     readDecls = map (\x ->fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (In nullAnno) prog)) readArgs
                     writtenDecls = map (\x ->fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (Out nullAnno) prog)) writtenArgs
                     generalDecls = map (\x ->fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (InOut nullAnno) prog)) generalArgs
-generateKernelDeclarations prog (OpenCLReduce _ _ r w _ rv _) = (readDecls, writtenDecls, generalDecls_withReductions)
+generateKernelDeclarations prog (OpenCLReduce _ _ r w _ _ rv _) = (readDecls, writtenDecls, generalDecls_withReductions) -- WV20170426
                 where
                     reductionVarNames = map (fst) rv
 

@@ -150,7 +150,7 @@ data Attr     p = Parameter p
                 -- units-of-measure extension
                 | MeasureUnit p (MeasureUnitSpec p)
               deriving (Show, Functor, Typeable, Data, Eq)
-			  
+              
 
 {- start: units-of-measure extension -}
 type MeasureUnit = String
@@ -169,19 +169,19 @@ data Fraction p = IntegerConst p String
 
 data GSpec   p = GName p (Expr p) | GOper p (BinOp p) | GAssg p
                  deriving (Show, Functor, Typeable, Data, Eq)
-			  
+              
 data InterfaceSpec p = FunctionInterface   p (SubName p) (Arg p) (Uses p) (Implicit p) (Decl p)
                      | SubroutineInterface p (SubName p) (Arg p) (Uses p) (Implicit p) (Decl p)
                      | ModuleProcedure     p [(SubName p)]
                        deriving (Show, Functor, Typeable, Data, Eq)
-		
+        
 data DataForm p = Data p [(Expr p, Expr p)] deriving (Show, Functor, Typeable, Data, Eq) -- data declaration
-		   
+           
 data IntentAttr p = In p
                   | Out p
                   | InOut p
                     deriving (Show, Functor, Typeable, Data, Eq)
-				
+                
 data Fortran  p = Assg p SrcSpan (Expr p) (Expr p) 
                 | For  p SrcSpan (VarName p) (Expr p) (Expr p) (Expr p) (Fortran p)
                 | DoWhile  p SrcSpan (Expr p) (Fortran p)
@@ -221,11 +221,13 @@ data Fortran  p = Assg p SrcSpan (Expr p) (Expr p)
                   [VarName p]                           -- List of arguments to kernel that are READ
                   [VarName p]                           -- List of arguments to kernel that are WRITTEN
                   [(VarName p, Expr p, Expr p, Expr p)] -- Loop variables of nested maps
+                  [VarName p] -- Loop variables of enclosing iterative loops
                   (Fortran p)                           -- Body of kernel code
                 | OpenCLReduce p SrcSpan
                   [VarName p]                           -- List of arguments to kernel that are READ
                   [VarName p]                           -- List of arguments to kernel that are WRITTEN
                   [(VarName p, Expr p, Expr p, Expr p)] -- Loop variables of nested reductions
+                  [VarName p] -- Loop variables of enclosing iterative loops
                   [(VarName p, Expr p)]                 -- List of variables that are considered 'reduction variables' along with their initial values
                   (Fortran p)                           -- Body of kernel code
                 | OpenCLSeq p SrcSpan
@@ -393,8 +395,8 @@ instance Span (Fortran a) where
     srcSpan (TextStmt x sp s)        = sp
     srcSpan (NullStmt x sp)          = sp
     srcSpan (SelectStmt x sp e fes _)         = sp        -- GAV ADDED
-    srcSpan (OpenCLMap x sp e1 e2 _ f2)       = sp        -- GAV ADDED
-    srcSpan (OpenCLReduce x sp e1 e2 _ e3 f2) = sp        -- GAV ADDED
+    srcSpan (OpenCLMap x sp e1 e2 _ _ f2)       = sp        -- GAV ADDED -- WV20170426 extra arg
+    srcSpan (OpenCLReduce x sp e1 e2 _ _ e3 f2) = sp        -- GAV ADDED -- WV20170426 extra arg
     srcSpan (OpenCLBufferRead _ sp _)         = sp        -- GAV ADDED
     srcSpan (OpenCLBufferWrite _ sp _)        = sp        -- GAV ADDED
 
@@ -522,8 +524,8 @@ instance Tagged Fortran where
     tag (TextStmt x sp s)       = x
     tag (NullStmt x sp)         = x
     tag (SelectStmt x sp e fes _)         = x   -- GAV ADDED
-    tag (OpenCLMap x sp e1 e2 _ f2)       = x   -- GAV ADDED
-    tag (OpenCLReduce x sp e1 e2 _ e3 f2) = x   -- GAV ADDED
+    tag (OpenCLMap x sp e1 e2 _ _ f2)       = x   -- GAV ADDED -- WV20170426 extra arg
+    tag (OpenCLReduce x sp e1 e2 _ _ e3 f2) = x   -- GAV ADDED -- WV20170426 extra arg
     tag (OpenCLBufferRead x _ _)          = x   -- GAV ADDED
 
 

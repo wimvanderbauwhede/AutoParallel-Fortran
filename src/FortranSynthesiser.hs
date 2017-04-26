@@ -263,8 +263,8 @@ produceCode_fortran prog tabs originalLines codeSeg = case codeSeg of
                         NullStmt _ _ -> ""
                         OpenCLBufferRead _ _ _ -> synthesiseOpenCLBufferRead prog tabs originalLines codeSeg
                         OpenCLBufferWrite _ _ _ -> synthesiseOpenCLBufferWrite prog tabs originalLines codeSeg
-                        OpenCLMap _ _ _ _ _ _ -> (synthesiseKernelCall prog tabs codeSeg) ++ (commentSeparator "END")                        
-                        OpenCLReduce _ _ _ _ _ rv f -> (synthesiseKernelCall prog tabs codeSeg)     
+                        OpenCLMap _ _ _ _ _ _ _ -> (synthesiseKernelCall prog tabs codeSeg) ++ (commentSeparator "END")  -- WV20170426
+                        OpenCLReduce _ _ _ _ _ _ rv f -> (synthesiseKernelCall prog tabs codeSeg) -- WV20170426
                                                                 ++ (mkQ "" (produceCode_fortran prog tabs originalLines) hostReductionLoop) ++ "\n" ++ (commentSeparator "END")
                                 where 
                                     reductionVarNames = map (\(varname, expr) -> varname) rv
@@ -434,8 +434,8 @@ synthesiseKernelCaseAlternative tabs state kernelName args =  tabs ++ "case (" +
 
 synthesiseKernels :: [String] -> ProgUnit Anno -> (Program Anno, String) -> Fortran Anno -> [(String, String)]
 synthesiseKernels originalLines orig_ast prog codeSeg = case codeSeg of
-                OpenCLMap _ src _ w _ _ -> [(synthesiseOpenCLMap "" originalLines orig_ast prog codeSeg, generateKernelName "map" src w)]
-                OpenCLReduce _ src _ _ _ rv _ ->  [(synthesiseOpenCLReduce "" originalLines orig_ast prog codeSeg, generateKernelName "reduce" src (map (\(v, e) -> v) rv))]
+                OpenCLMap _ src _ w _ _ _ -> [(synthesiseOpenCLMap "" originalLines orig_ast prog codeSeg, generateKernelName "map" src w)] -- WV20170426
+                OpenCLReduce _ src _ _ _ _ rv _ ->  [(synthesiseOpenCLReduce "" originalLines orig_ast prog codeSeg, generateKernelName "reduce" src (map (\(v, e) -> v) rv))] -- WV20170426
                 _ -> []
 
 synthesiseSizeStatements :: String -> [VarName Anno] -> Program Anno -> (String, String)
@@ -708,7 +708,7 @@ synthesiseDeclList ((expr1, expr2, maybeInt):xs) = outputExprFormatting expr1 ++
 --1/ find *all* variables used in the code segment 'fortran'
 --2/ determine which ones need to be arguments and which one locals
 synthesiseOpenCLMap :: String -> [String] -> ProgUnit Anno -> (Program Anno, String) -> Fortran Anno -> String
-synthesiseOpenCLMap inTabs originalLines orig_ast programInfo (OpenCLMap anno src r w l fortran) =
+synthesiseOpenCLMap inTabs originalLines orig_ast programInfo (OpenCLMap anno src r w l il fortran) = -- WV20170426
                                                                     inTabs ++ "subroutine " ++ kernelName
                                                                     ++"(" 
                                                                                     ++ allArgs_ptrAdaptionStr ++ ")\n"
@@ -756,12 +756,12 @@ synthesiseOpenCLMap inTabs originalLines orig_ast programInfo (OpenCLMap anno sr
                                                 writtenArgs = listSubtract w r
                                                 generalArgs = listIntersection w r
 
-                                                allArgs = extractKernelArguments (OpenCLMap anno src r w l fortran)      
+                                                allArgs = extractKernelArguments (OpenCLMap anno src r w l il fortran)       -- WV20170426
                                                 -- WV: local variable declarations
                                                 (localVarsStr,localDeclStrs,paramDeclStrs) = getLocalDeclStrs allArgs orig_decls_stmts originalLines tabs kernelName
                                                 -- WV: declarations for _range and _rel
                                                 range_rel_decls_str = generateRangeRelDecls l tabs --  we can do this because they *must* be integers    
-                                                (readDecls, writtenDecls, generalDecls, ptrAssignments_fseq, allArgs_ptrAdaption) = adaptForReadScalarDecls allArgs (generateKernelDeclarations prog (OpenCLMap anno src r w l fortran))
+                                                (readDecls, writtenDecls, generalDecls, ptrAssignments_fseq, allArgs_ptrAdaption) = adaptForReadScalarDecls allArgs (generateKernelDeclarations prog (OpenCLMap anno src r w l il fortran)) -- WV20170426
                                                 allArgs_ptrAdaptionStr = case allArgs_ptrAdaption of
                                                             [] -> ""
                                                             args -> foldl (\accum item -> accum ++ "," ++ varNameStr item) (varNameStr (head args)) (tail args)
@@ -878,7 +878,7 @@ getMissingArgDeclStrs missingArgs_strs originalLines tabs =
 --    -    Assign values to global result array that host will reduce later
 --    -    End subroutine. 
 synthesiseOpenCLReduce :: String ->  [String] -> ProgUnit Anno ->  (Program Anno, String)-> Fortran Anno -> String
-synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce anno src r w l rv fortran)  =
+synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce anno src r w l il rv fortran)  = -- WV20170426
                                                                             inTabs ++ "subroutine " ++ kernelName
                                                                             ++ "("                 
                                                                             ++ allArgs_ptrAdaptionStr
@@ -984,7 +984,7 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
                                                 globalIdInitialisation = "call " ++ outputExprFormatting (getGlobalID globalIdVar) ++ "\n"
                                                 groupSizeInitialisation_calculation = generateGlobalWorkItemsExpr l
 
-                                                allArgs = extractKernelArguments (OpenCLReduce anno src r w l rv fortran) -- WV: this is incorrect, these are only *some* args
+                                                allArgs = extractKernelArguments (OpenCLReduce anno src r w l il rv fortran) -- WV: this is incorrect, these are only *some* args -- WV20170426
                                                 -- FIXME: so here I am adding the missing ones. Instead I should figure out what's wrong with the r/w arguments
                                                 allArgs_strs = map varNameStr allArgs
                                                 -- all args from the original subroutine used in the loop body
@@ -998,7 +998,7 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
                                                 -- WV: declarations for _range and _rel
                                                 range_rel_decls_str = generateRangeRelDecls l tabs --  we can do this because they *must* be integers                                                
                                                 
-                                                (readDecls, writtenDecls, generalDecls, ptrAssignments, allArgs_ptrAdaption) = adaptForReadScalarDecls (allArgs++missingArgs) (generateKernelDeclarations prog (OpenCLReduce anno src r w l rv fortran))
+                                                (readDecls, writtenDecls, generalDecls, ptrAssignments, allArgs_ptrAdaption) = adaptForReadScalarDecls (allArgs++missingArgs) (generateKernelDeclarations prog (OpenCLReduce anno src r w l il rv fortran)) -- WV20170426
                                                 allArgs_ptrAdaptionStr = case allArgs_ptrAdaption of
                                                             [] -> ""
                                                             args -> foldl (\accum item -> accum ++ "," ++ varNameStr item) (varNameStr (head args)) (tail args)
@@ -1088,7 +1088,7 @@ matchParameterDecl line  = let
 --    Function used during host code generation to produce call to OpenCL kernel.
 synthesiseKernelCall :: (Program Anno, String) -> String -> Fortran Anno -> String
 synthesiseKernelCall ([], _) _  _ = "DUMMY synthesiseKernelCall"
-synthesiseKernelCall (progAst, filename) tabs (OpenCLMap anno src r w l fortran) = (commentSeparator ("BEGIN " ++ kernelName))
+synthesiseKernelCall (progAst, filename) tabs (OpenCLMap anno src r w l il fortran) = (commentSeparator ("BEGIN " ++ kernelName)) -- WV20170426
                                                         ++ tabs ++ "oclGlobalRange = " ++ outputExprFormatting globalWorkItems ++ "\n"
                                                         ++ tabs ++ "oclLocalRange = 0\n" -- means NullRange
                                                         ++ tabs ++ (varNameStr statePtrVarName) ++ "(1) = " ++ stateName ++ "\n"
@@ -1114,7 +1114,7 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLMap anno src r w l fortran)
                 bufferWrites = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Write") (readDecls ++ generalDecls ++ [statePtrDecl]))
                 bufferReads = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Read") (writtenDecls ++ generalDecls))
 
-                (readDecls, writtenDecls, generalDecls) = generateKernelDeclarations progAst (OpenCLMap anno src r w l fortran)
+                (readDecls, writtenDecls, generalDecls) = generateKernelDeclarations progAst (OpenCLMap anno src r w l il fortran) -- WV20170426
 
 
 {-
@@ -1137,7 +1137,7 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLMap anno src r w l fortran)
 
 ! ---- END --------------------------------------------------------------------------------------------------------------------
 -}      
-synthesiseKernelCall (progAst, filename) tabs (OpenCLReduce anno src r w l rv fortran) = (commentSeparator ("BEGIN " ++ kernelName))
+synthesiseKernelCall (progAst, filename) tabs (OpenCLReduce anno src r w l il rv fortran) = (commentSeparator ("BEGIN " ++ kernelName)) -- WV20170426
                                                             ++ tabs ++ "oclGlobalRange = " ++ outputExprFormatting reductionWorkItemsExpr ++ "\n"
                                                             ++ tabs ++ "oclLocalRange = " ++ outputExprFormatting nthVar ++ "\n"
                                                             ++ tabs ++ "ngroups = " ++ outputExprFormatting nunitsVar ++ "\n"
@@ -1177,7 +1177,7 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLReduce anno src r w l rv fo
                 uniqueDecls = nub (writtenDecls ++ generalDecls ++ global_reductionArraysDecls)
                 bufferReads = unlines (map (synthesiseBufferAccess tabs "Read") uniqueDecls)
 
-                (readDecls, writtenDecls, generalDecls) = generateKernelDeclarations progAst (OpenCLReduce anno src r w l rv fortran)
+                (readDecls, writtenDecls, generalDecls) = generateKernelDeclarations progAst (OpenCLReduce anno src r w l il rv fortran) -- WV20170426
 
                 global_reductionArraysDecls = map (\x -> declareGlobalReductionArray x (nunitsVar) progAst) reductionVarNames
 

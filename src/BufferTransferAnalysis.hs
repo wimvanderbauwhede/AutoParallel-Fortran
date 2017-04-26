@@ -51,10 +51,10 @@ optimiseBufferTransfers subTable argTranslations (mainAst,mainOrigLines) = -- er
             (kernelStartSrc, kernelEndSrc) = generateKernelCallSrcRange subTable mainAst
 
             kernelRangeSrc = (fst kernelStartSrc, snd kernelEndSrc)
+            -- WV: So I guess here is where it goes wrong
             (kernels_withoutInitOrTearDown, initWrites, varsOnDeviceAfterOpenCL) = stripInitAndTearDown flattenedVarAccessAnalysis kernelRangeSrc kernels_optimisedBetween
 
             readConsiderationSrc = kernelRangeSrc
-            -- WV: So I guess here is where it goes wrong, but need to grok the previous part as well
             (bufferWritesBefore, bufferWritesAfter) = generateBufferInitPositions initWrites mainAst kernelStartSrc kernelEndSrc varAccessAnalysis
             (bufferReadsBefore, bufferReadsAfter) = generateBufferReadPositions varsOnDeviceAfterOpenCL mainAst kernelStartSrc kernelEndSrc varAccessAnalysis
 
@@ -393,17 +393,32 @@ stripInitAndTearDown varAccessAnalysis (kernelsStart, kernelsEnd) kernels = (new
             bufferReads = extractKernelWrites currentKernel -- buffer reads are for variables that are written to by the kernel
             (_, writesBeforeCurrentKernel) = getAccessesBetweenSrcSpans varAccessAnalysis kernelsStart currentSrcStart
             (readsAfterCurrentKernel, _) = getAccessesBetweenSrcSpans varAccessAnalysis currentSrcEnd kernelsEnd
-
+            -- WV: all elts of bufferWrites that are not in  writesBeforeCurrentKernel
+            --
             initialisingWrites = listSubtract bufferWrites writesBeforeCurrentKernel
             tearDownReads = listSubtract bufferReads readsAfterCurrentKernel
-
-            newBufferWrites = listSubtract bufferWrites initialisingWrites
+            -- WV: a safe way to deal with iterative loops is to remove these from the bufferWrites, then add them
+            iterLoopVars = getIterLoopVars currentKernel
+            iterLoopVarsInKernel = filter (\elt -> elt `elem` bufferWrites) iterLoopVars
+            bufferWritesNoIterLoopVars = filter (\elt -> not (elt `elem` bufferWrites)) iterLoopVars
+            newBufferWrites = (listSubtract bufferWrites initialisingWrites)++iterLoopVarsInKernel
+            newBufferWrites' = newBufferWrites
+--            warning newBufferWrites (
+--                "KERNEL: "++(miniPPF currentKernel)++
+--                "\nBUFFER WRITES: "++
+--                "\nBEFORE: "++ (showVarLst writesBeforeCurrentKernel) ++
+--                "\nINIT: "++ (showVarLst initialisingWrites) ++
+--                "\nNEW:"++(showVarLst newBufferWrites)++
+--                "\nOLD:"++(showVarLst bufferWrites))
             newBufferReads = listSubtract bufferReads tearDownReads
             
-            newCurrentKernel = replaceKernelWrites (replaceKernelReads currentKernel newBufferWrites) newBufferReads
+            newCurrentKernel = replaceKernelWrites (replaceKernelReads currentKernel newBufferWrites') newBufferReads
 
             (recursiveKernels, recursiveInitialisingWrites, recursiveTearDownReads) = stripInitAndTearDown varAccessAnalysis (kernelsStart, kernelsEnd) (tail kernels)
 
+getIterLoopVars (OpenCLMap _ _ vrs vws lvars ilvars stmt1) = ilvars
+getIterLoopVars (OpenCLReduce _ _ vrs vws lvars ilvars rvarexprs stmt1) = ilvars
+getIterLoopVars _ = []
 --    Taking the kernels in the order that they are called by the subroutines, and in the order that the subroutines are called by the host, eliminate pairs of
 --    arguments that cancel each other out. For example, kernel A writes back var x and kernel B reads it again soon after, with no host interaction - in this case,
 --    both the read and the write of x can be removed from the respective kernels.
@@ -424,7 +439,7 @@ eliminateBufferPairsKernel_recurse varAccessAnalysis firstKernel kernels ignored
             (resursiveCall_firstKernel, resursiveCall_kernels) = eliminateBufferPairsKernel_recurse varAccessAnalysis newFirstKernel (tail kernels) ((srcSpan secondKernel):ignoredSpans)
 
 eliminateBufferPairsKernel :: VarAccessAnalysis -> [SrcSpan] -> Fortran Anno -> Fortran Anno -> (Fortran Anno, Fortran Anno)
-eliminateBufferPairsKernel varAccessAnalysis ignoredSpans firstKernel secondKernel = warning (newFirstKernel, newSecondKernel) debugMessage
+eliminateBufferPairsKernel varAccessAnalysis ignoredSpans firstKernel secondKernel = (newFirstKernel, newSecondKernel) -- warning (newFirstKernel, newSecondKernel) debugMessage
         where
             debugMessage = "\n\nNewFirstKernel:\n" ++ (miniPPF newFirstKernel) ++ "\n\nNewSecondKernel:\n" ++ (miniPPF newSecondKernel)
 --                            ++ "\n\n readsBetween:\n" ++ (show $ map (\(VarName _ v) -> v) readsBetween) ++ "\n\n writesBetween:\n" ++ (show $ map (\(VarName _ v) -> v) writesBetween)
@@ -470,26 +485,26 @@ eliminateBufferPairsKernel varAccessAnalysis ignoredSpans firstKernel secondKern
 
 extractKernelReads :: Fortran Anno -> [VarName Anno]
 extractKernelReads codeSeg = case codeSeg of
-                OpenCLMap _ _ reads _ _ _ -> reads
-                OpenCLReduce _ _ reads _ _ _ _ -> reads
+                OpenCLMap _ _ reads _ _ _ _ -> reads -- WV20170426
+                OpenCLReduce _ _ reads _ _ _ _ _ -> reads -- WV20170426
                 _ -> error "extractKernelReads: not a kernel"
 
 extractKernelWrites :: Fortran Anno -> [VarName Anno]
 extractKernelWrites codeSeg = case codeSeg of
-                OpenCLMap _ _ _ writes _ _ -> writes
-                OpenCLReduce _ _ _ writes _ _ _ -> writes
+                OpenCLMap _ _ _ writes _ _ _ -> writes -- WV20170426
+                OpenCLReduce _ _ _ writes _ _ _ _ -> writes -- WV20170426
                 _ -> error "extractKernelWrites: not a kernel"
 
 replaceKernelReads :: Fortran Anno -> [VarName Anno] -> Fortran Anno
 replaceKernelReads codeSeg newReads = case codeSeg of
-                OpenCLMap anno src reads writes loopV fortran -> OpenCLMap anno src newReads writes loopV fortran
-                OpenCLReduce anno src reads writes loopV redV fortran -> OpenCLReduce anno src newReads writes loopV redV fortran
+                OpenCLMap anno src reads writes loopV iterLoopV fortran -> OpenCLMap anno src newReads writes loopV iterLoopV fortran -- WV20170426
+                OpenCLReduce anno src reads writes loopV iterLoopV redV fortran -> OpenCLReduce anno src newReads writes loopV iterLoopV redV fortran -- WV20170426
                 _ -> error "replaceKernelReads: not a kernel"
 
 replaceKernelWrites :: Fortran Anno -> [VarName Anno] -> Fortran Anno
 replaceKernelWrites codeSeg newWrites = case codeSeg of
-                OpenCLMap anno src reads writes loopV fortran -> OpenCLMap anno src reads newWrites loopV fortran
-                OpenCLReduce anno src reads writes loopV redV fortran -> OpenCLReduce anno src reads newWrites loopV redV fortran
+                OpenCLMap anno src reads writes loopV iterLoopV fortran -> OpenCLMap anno src reads newWrites loopV iterLoopV fortran -- WV20170426
+                OpenCLReduce anno src reads writes loopV iterLoopV redV fortran -> OpenCLReduce anno src reads newWrites loopV iterLoopV redV fortran -- WV20170426
                 _ -> error "replaceKernelWrites: not a kernel"
 
 

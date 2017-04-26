@@ -152,14 +152,14 @@ extractArgName codeSeg = case codeSeg of
                             _ -> []
 
 extractReductionVarNames :: Fortran Anno -> [VarName Anno]
-extractReductionVarNames (OpenCLReduce _ _ _ _ _ redVars _) = map (fst) redVars
+extractReductionVarNames (OpenCLReduce _ _ _ _ _ _ redVars _) = map (fst) redVars -- WV20170426
 extractReductionVarNames _ = []
 
 extractOpenCLReduces ast = everything (++) (mkQ [] (extractOpenCLReduces')) ast
 
 extractOpenCLReduces' :: Fortran Anno -> [Fortran Anno]
 extractOpenCLReduces' codeSeg = case codeSeg of
-                            OpenCLReduce _ _ _ _ _ _ _ -> [codeSeg]
+                            OpenCLReduce _ _ _ _ _ _ _ _ -> [codeSeg] -- WV20170426
                             _ -> []
 
 extractLoopIters :: Fortran Anno -> [String]
@@ -182,8 +182,8 @@ extractKernels ast = everything (++) (mkQ [] (extractKernels')) ast
 
 extractKernels' :: Fortran Anno -> [Fortran Anno]
 extractKernels' codeSeg = case codeSeg of
-                            OpenCLMap _ _ _ _ _ _ -> [codeSeg]
-                            OpenCLReduce _ _ _ _ _ _ _ -> [codeSeg]
+                            OpenCLMap _ _ _ _ _ _ _ -> [codeSeg] -- WV20170426
+                            OpenCLReduce _ _ _ _ _ _ _ _ -> [codeSeg] -- WV20170426
                             _ -> []
 
 extractBufferWrites ast = everything (++) (mkQ [] (extractBufferWrites')) ast
@@ -287,8 +287,8 @@ generateSrcSpan [] ((SrcLoc sFile sLine sCol), (SrcLoc eFile eLine eCol)) = (Src
 generateSrcSpan filename ((SrcLoc sFile sLine sCol), (SrcLoc eFile eLine eCol)) = (SrcLoc {srcFilename = filename, srcLine = sLine, srcColumn = sCol}, SrcLoc {srcFilename = filename, srcLine = eLine, srcColumn = eCol})
 
 applySrcSpan :: SrcSpan -> Fortran Anno -> Fortran Anno
-applySrcSpan src (OpenCLMap anno _ read written loopvs fortran) = OpenCLMap anno src read written loopvs fortran
-applySrcSpan src (OpenCLReduce anno _ read written loopvs rvs fortran) = OpenCLReduce anno src read written loopvs rvs fortran
+applySrcSpan src (OpenCLMap anno _ read written loopvs iterloopvs fortran) = OpenCLMap anno src read written loopvs iterloopvs fortran -- WV20170426
+applySrcSpan src (OpenCLReduce anno _ read written loopvs iterloopvs rvs fortran) = OpenCLReduce anno src read written loopvs iterloopvs rvs fortran -- WV20170426
 applySrcSpan src _ = error "applySrcSpan: unnsupported AST node"
 
 applyGlobalSrcSpan :: (Data (a Anno)) => SrcSpan -> a Anno -> a Anno
@@ -408,8 +408,8 @@ hasOperand container contains = all (== True) $ map (\x -> elem x (extractOperan
 appendAnnotation :: Fortran Anno -> String -> String -> Fortran Anno
 appendAnnotation original key appendage = case original of
         For anno f2 f3 f4 f5 f6 f7 -> For (appendToMap key appendage anno) f2 f3 f4 f5 f6 f7
-        OpenCLMap anno f2 f3 f4 f5 f6 -> OpenCLMap (appendToMap key appendage anno) f2 f3 f4 f5 f6
-        OpenCLReduce anno f2 f3 f4 f5 f6 f7 -> OpenCLReduce (appendToMap key appendage anno) f2 f3 f4 f5 f6 f7
+        OpenCLMap anno f2 f3 f4 f5 f6 f7 -> OpenCLMap (appendToMap key appendage anno) f2 f3 f4 f5 f6 f7 -- WV20170426
+        OpenCLReduce anno f2 f3 f4 f5 f6 f7 f8 -> OpenCLReduce (appendToMap key appendage anno) f2 f3 f4 f5 f6 f7 f8 -- WV20170426
         _ -> original
 
         -- appendToMap
@@ -420,8 +420,8 @@ appendAnnotationList original key appendage = foldl (\accum item -> appendAnnota
 appendAnnotationMap :: Fortran Anno -> Anno -> Fortran Anno
 appendAnnotationMap codeSeg newMap = case codeSeg of
         For anno f2 f3 f4 f5 f6 f7 -> For (combineAnnotations newMap anno) f2 f3 f4 f5 f6 f7
-        OpenCLMap anno f2 f3 f4 f5 f6 -> OpenCLMap (combineAnnotations newMap anno) f2 f3 f4 f5 f6
-        OpenCLReduce anno f2 f3 f4 f5 f6 f7 -> OpenCLReduce (combineAnnotations newMap anno) f2 f3 f4 f5 f6 f7
+        OpenCLMap anno f2 f3 f4 f5 f6 f7 -> OpenCLMap (combineAnnotations newMap anno) f2 f3 f4 f5 f6 f7 -- WV20170426
+        OpenCLReduce anno f2 f3 f4 f5 f6 f7 f8 -> OpenCLReduce (combineAnnotations newMap anno) f2 f3 f4 f5 f6 f7 f8 -- WV20170426
 
 -- appendAnnotation original appendage = original
 
@@ -435,8 +435,8 @@ removeAllAnnotations original = everywhere (mkT removeAnnotations) original
 removeAnnotations :: Fortran Anno -> Fortran Anno
 removeAnnotations original = case original of
         For anno f2 f3 f4 f5 f6 f7 -> For nullAnno f2 f3 f4 f5 f6 f7
-        OpenCLMap anno f2 f3 f4 f5 f6 -> OpenCLMap nullAnno f2 f3 f4 f5 f6
-        OpenCLReduce anno f2 f3 f4 f5 f6 f7 -> OpenCLReduce nullAnno f2 f3 f4 f5 f6 f7
+        OpenCLMap anno f2 f3 f4 f5 f6 f7 -> OpenCLMap nullAnno f2 f3 f4 f5 f6 f7  -- WV20170426
+        OpenCLReduce anno f2 f3 f4 f5 f6 f7 f8 -> OpenCLReduce nullAnno f2 f3 f4 f5 f6 f7 f8 -- WV20170426
         _ -> original
 
 combineAnnotations :: Anno -> Anno -> Anno
@@ -634,6 +634,7 @@ listCartesianProduct :: [a] -> [a] -> [(a,a)]
 listCartesianProduct xs ys = [(x,y) | x <- xs, y <- ys]
 
 --    Generic function that takes two lists a and b and returns a +list c that is all of the elements of a that do not appear in b.
+--    WV: all elts of a that are not in b
 listSubtract :: Eq a => [a] -> [a] -> [a]
 listSubtract a b = filter (\x -> notElem x b) a
 

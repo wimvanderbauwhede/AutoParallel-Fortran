@@ -334,8 +334,8 @@ mergeDeclWithPrevious_recurse [] currentDecl = [currentDecl]
 
 
 extractKernelArguments :: Fortran Anno -> [VarName Anno]
-extractKernelArguments (OpenCLMap _ _ r w _ _) = listRemoveDuplications (r ++ w)
-extractKernelArguments (OpenCLReduce _ _ r w _ rv _) = listRemoveDuplications ((listSubtract (r ++ w) rvVarNames) ++ (map (\x -> generateGlobalReductionArray (fst x)) rv))
+extractKernelArguments (OpenCLMap _ _ r w _ _ _) = listRemoveDuplications (r ++ w) -- WV20170426
+extractKernelArguments (OpenCLReduce _ _ r w _ _ rv _) = listRemoveDuplications ((listSubtract (r ++ w) rvVarNames) ++ (map (\x -> generateGlobalReductionArray (fst x)) rv)) -- WV20170426
                 where
                     rvVarNames = map (fst) rv
 extractKernelArguments _ = []
