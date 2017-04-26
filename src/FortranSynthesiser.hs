@@ -1144,7 +1144,7 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLReduce anno src r w l il rv
                                                             ++ tabs ++ (varNameStr statePtrVarName) ++ "(1) = " ++ stateName ++ "\n"
                                                             ++ tabs ++ bufferWrites ++ "\n\n"
                                                             ++ tabs ++ "call runOcl(oclGlobalRange,oclLocalRange,exectime)\n"
-                                                            ++ tabs ++ "! call " ++ kernelName
+                                                            ++ tabs ++ "! call " ++ kernelName++"\n"
                                                             ++ bufferReads -- WV clearly one of these is redundant
 --                                                            ++ bufferReads_rv 
                                                             ++ "\n"
