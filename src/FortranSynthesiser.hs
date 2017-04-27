@@ -753,9 +753,6 @@ synthesiseOpenCLMap inTabs originalLines orig_ast programInfo (OpenCLMap anno sr
                                                 kernelName = generateKernelName "map" src w
                                                 globalIdVar = generateVar (VarName nullAnno "global_id")
                                                 tabs = inTabs ++ tabInc
-                                                
-
-                                                --WV: extractKernelArguments takes the read and written lists from the OpenCL* nodes and removes the loop iterators from that list as they should always be local
                                                 allArgs = extractKernelArguments (OpenCLMap anno src r w l il fortran)       -- WV20170426
                                                 -- WV: local variable declarations
                                                 (localVarsStr,localDeclStrs,paramDeclStrs) = getLocalDeclStrs allArgs orig_decls_stmts originalLines tabs kernelName
@@ -1003,15 +1000,22 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
                                                 (missingArgsStr,missingArgDeclsStr) = getMissingArgDeclStrs missingArgs_strs originalLines tabs
                                                 -- WV: declarations for _range and _rel
                                                 range_rel_decls_str = generateRangeRelDecls l tabs --  we can do this because they *must* be integers                                                
-                                                
-                                                (readDecls, writtenDecls, readWriteDecls, ptrAssignments, allArgs_ptrAdaption) = adaptForReadScalarDecls (allArgs++missingArgs) (generateKernelDeclarations prog (OpenCLReduce anno src r w l il rv fortran)) -- WV20170426
+
+                                                (readDecls', writtenDecls', readWriteDecls', ptrAssignments, allArgs_ptrAdaption') = 
+                                                    adaptForReadScalarDecls (allArgs++missingArgs) (generateKernelDeclarations prog (OpenCLReduce anno src r w l il rv fortran)) -- WV20170426
+                                                -- WV: Remove the loop variables from the arguments
+                                                loopVars = map (\(v,_,_,_) -> v) l
+                                                allArgs_ptrAdaption = listSubtract allArgs_ptrAdaption' loopVars
+                                                readDecls = filter (\elt -> not ((extractAssigneeFromDecl elt) `elem`  loopVars ) ) readDecls'
+                                                writtenDecls = filter (\elt -> not ((extractAssigneeFromDecl elt) `elem`  loopVars ) ) writtenDecls'
+                                                readWriteDecls = filter (\elt -> not ((extractAssigneeFromDecl elt) `elem`  loopVars ) ) readWriteDecls'
                                                 allArgs_ptrAdaptionStr = case allArgs_ptrAdaption of
                                                             [] -> ""
                                                             args -> foldl (\accum item -> accum ++ "," ++ varNameStr item) (varNameStr (head args)) (tail args)
 
-                                                readDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" (readDecls)
-                                                writtenDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" (writtenDecls)
-                                                readWriteDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" (readWriteDecls)
+                                                readDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" readDecls
+                                                writtenDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" writtenDecls
+                                                readWriteDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" readWriteDecls
                                                 
                                                 local_reductionVars = map (generateLocalReductionVar) reductionVarNames
                                                 local_reductionVarsInitStr = foldl (\accum (var, expr) -> accum ++ tabs ++ "local_" ++ varNameStr var ++ " = " ++ outputExprFormatting expr ++ "\n") "" rv

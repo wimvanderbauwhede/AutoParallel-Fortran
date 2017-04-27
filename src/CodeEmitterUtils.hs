@@ -333,6 +333,7 @@ mergeDeclWithPrevious_recurse (listDecl:decls) currentDecl     |    matchingVarN
 mergeDeclWithPrevious_recurse [] currentDecl = [currentDecl]
 
 
+--WV: extractKernelArguments takes the read and written lists from the OpenCL* nodes and removes the loop iterators from that list as they should always be local
 extractKernelArguments :: Fortran Anno -> [VarName Anno]
 extractKernelArguments (OpenCLMap _ _ r w l _ _) = 
     let
