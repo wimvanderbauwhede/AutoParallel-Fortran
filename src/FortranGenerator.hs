@@ -175,30 +175,30 @@ generateLoopIterationsExpr (var, start, end, step) = Bin nullAnno nullSrcSpan (D
 
 generateKernelDeclarations :: Program Anno -> Fortran Anno -> ([Decl Anno], [Decl Anno], [Decl Anno])
 generateKernelDeclarations [] _ = ([],[],[])
-generateKernelDeclarations prog (OpenCLMap _ _ r w _ _ _) = (readDecls, writtenDecls, generalDecls) -- WV20170426
+generateKernelDeclarations prog (OpenCLMap _ _ r w _ _ _) = (readDecls, writtenDecls, readWriteDecls) -- WV20170426
                 where
                     readArgs = listSubtract r w
                     writtenArgs = listSubtract w r
-                    generalArgs = listIntersection w r
+                    readWriteArgs = listIntersection w r
                     
                     readDecls = map (\x ->fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (In nullAnno) prog)) readArgs
                     writtenDecls = map (\x ->fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (Out nullAnno) prog)) writtenArgs
-                    generalDecls = map (\x ->fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (InOut nullAnno) prog)) generalArgs
-generateKernelDeclarations prog (OpenCLReduce _ _ r w _ _ rv _) = (readDecls, writtenDecls, generalDecls_withReductions) -- WV20170426
+                    readWriteDecls = map (\x ->fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (InOut nullAnno) prog)) readWriteArgs
+generateKernelDeclarations prog (OpenCLReduce _ _ r w _ _ rv _) = (readDecls, writtenDecls, readWriteDecls_withReductions) -- WV20170426
                 where
                     reductionVarNames = map (fst) rv
 
                     readArgs = listSubtract (listSubtract r w) reductionVarNames
                     writtenArgs = listSubtract (listSubtract w r) reductionVarNames
-                    generalArgs = listSubtract (listIntersection w r) reductionVarNames
+                    readWriteArgs = listSubtract (listIntersection w r) reductionVarNames
 
                     readDecls = map (\x -> fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (In nullAnno) prog)) readArgs
                     writtenDecls = map (\x -> fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (Out nullAnno) prog)) writtenArgs
-                    generalDecls = map (\x -> fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (InOut nullAnno) prog)) generalArgs
+                    readWriteDecls = map (\x -> fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (InOut nullAnno) prog)) readWriteArgs
 
                     globalReductionDecls = (map (\x -> declareGlobalReductionArray x (nunitsVar) (prog)) reductionVarNames)
 
-                    generalDecls_withReductions = generalDecls ++ globalReductionDecls
+                    readWriteDecls_withReductions = readWriteDecls ++ globalReductionDecls
 generateKernelDeclarations prog (OpenCLBufferRead _ _ varName) = (readDecls, [], [])
                 where
                     readDecls = [(\x ->fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (In nullAnno) prog)) varName]

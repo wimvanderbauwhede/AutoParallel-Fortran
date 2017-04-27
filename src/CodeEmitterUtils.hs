@@ -134,26 +134,26 @@ convertScalarToOneDimArray decl     |    isScalar = addDimension decl nothing on
 -- data Type     p = BaseType p                    (BaseType p) [Attr p] (Expr p) (Expr p)
 -- data Decl     p = Decl           p SrcSpan [(Expr p, Expr p, Maybe Int)] (Type p)
 adaptForReadScalarDecls :: [VarName Anno] -> ([Decl Anno], [Decl Anno], [Decl Anno]) -> ([Decl Anno], [Decl Anno], [Decl Anno], Fortran Anno, [VarName Anno])
-adaptForReadScalarDecls allArgs (readDecls, writtenDecls, generalDecls)  = (finalReadDecls, writtenDecls, finalGeneralDecls, ptrAssignments_fseq, allArgs_ptrAdaption)
+adaptForReadScalarDecls allArgs (readDecls, writtenDecls, readWriteDecls)  = (finalReadDecls, writtenDecls, finalReadWriteDecls, ptrAssignments_fseq, allArgs_ptrAdaption)
         where
             readScalars = map (removeIntentFromDecl) (filter (\x -> (getDeclRank x) == 0) readDecls)
             readScalars_noParams = filter (\x ->not (containsParameterAttr x)) readScalars
-            generalScalars = map (removeIntentFromDecl) (filter (\x -> (getDeclRank x) == 0) generalDecls)
-            scalars = map (extractAssigneeFromDecl) (readScalars ++ generalScalars)
+            readWriteScalars = map (removeIntentFromDecl) (filter (\x -> (getDeclRank x) == 0) readWriteDecls)
+            scalars = map (extractAssigneeFromDecl) (readScalars ++ readWriteScalars)
 
             readDecls_noScalars = filter (\x -> (getDeclRank x) /= 0) readDecls -- listSubtract readDecls readScalars
-            generalDecls_noScalars = filter (\x -> (getDeclRank x) /= 0) generalDecls --listSubtract generalDecls generalScalars
+            readWriteDecls_noScalars = filter (\x -> (getDeclRank x) /= 0) readWriteDecls --listSubtract readWriteDecls readWriteScalars
 
             readPtrs = map declareScalarPointer_decl readScalars
-            generalPtrs = map declareScalarPointer_decl generalScalars
+            readWritePtrs = map declareScalarPointer_decl readWriteScalars
 
-            ptrAssignments_list = map (\decl -> generatePtrScalarAssignment (extractAssigneeFromDecl decl)) (readScalars ++ generalScalars)
+            ptrAssignments_list = map (\decl -> generatePtrScalarAssignment (extractAssigneeFromDecl decl)) (readScalars ++ readWriteScalars)
             -- WV
             --ptrAssignments_fseq = generateFSeq ptrAssignments_list
             ptrAssignments_fseq = generateFSeq []
 
             finalReadDecls = readDecls_noScalars ++ readScalars_noParams -- WV -- ++ readPtrs
-            finalGeneralDecls = generalDecls_noScalars ++ generalScalars -- WV -- ++ generalPtrs
+            finalReadWriteDecls = readWriteDecls_noScalars ++ readWriteScalars -- WV -- ++ readWritePtrs
             -- WV
             allArgs_ptrAdaption = allArgs -- map (\var -> if elem var scalars then scalarPointerVarName var else var) allArgs
             -- allArgs_ptrAdaption = map (\var -> if elem var scalars then scalarPointerVarName var else var) allArgs
@@ -334,10 +334,22 @@ mergeDeclWithPrevious_recurse [] currentDecl = [currentDecl]
 
 
 extractKernelArguments :: Fortran Anno -> [VarName Anno]
-extractKernelArguments (OpenCLMap _ _ r w _ _ _) = listRemoveDuplications (r ++ w) -- WV20170426
-extractKernelArguments (OpenCLReduce _ _ r w _ _ rv _) = listRemoveDuplications ((listSubtract (r ++ w) rvVarNames) ++ (map (\x -> generateGlobalReductionArray (fst x)) rv)) -- WV20170426
-                where
-                    rvVarNames = map (fst) rv
+extractKernelArguments (OpenCLMap _ _ r w l _ _) = 
+    let
+       loopvars = map (\(v,_,_,_) -> v) l
+       read_written_vars = listRemoveDuplications (r ++ w) -- WV20170426
+       args = filter (\elt -> not (elt `elem` loopvars)) read_written_vars
+    in
+        args    
+extractKernelArguments (OpenCLReduce _ _ r w l _ rv _) = 
+    let
+       rvVarNames = map (fst) rv
+       read_written_red_vars = listRemoveDuplications ((listSubtract (r ++ w) rvVarNames) ++ (map (\x -> generateGlobalReductionArray (fst x)) rv)) -- WV20170426
+       loopvars = map (\(v,_,_,_) -> v) l
+       args = filter (\elt -> not (elt `elem` loopvars)) read_written_red_vars
+    in       
+        args
+        
 extractKernelArguments _ = []
 
 generateLocalReductionArray (VarName anno str) = VarName anno ("local_" ++ str ++ "_array")

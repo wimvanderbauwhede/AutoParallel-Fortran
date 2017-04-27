@@ -927,6 +927,10 @@ inlineDeclsFromUsedModules contentLines = do
 --statefullPass :: (SubroutineTable -> a -> (SubroutineTable,a)) -> a -> SubroutineTable -> (SubroutineTable,a)
 --statefullPass statefull_action state subtable = statefull_action subtable state
 
+getLoopVars (OpenCLMap _ _ vrs vws lvars ilvars stmt1) = map (\(v,_,_,_) -> v) lvars
+getLoopVars (OpenCLReduce _ _ vrs vws lvars ilvars rvarexprs stmt1) =  map (\(v,_,_,_) -> v) lvars
+getLoopVars _ = []
 
-
-
+getIterLoopVars (OpenCLMap _ _ vrs vws lvars ilvars stmt1) = ilvars
+getIterLoopVars (OpenCLReduce _ _ vrs vws lvars ilvars rvarexprs stmt1) = ilvars
+getIterLoopVars _ = []

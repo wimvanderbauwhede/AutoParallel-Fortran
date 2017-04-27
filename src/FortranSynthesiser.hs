@@ -328,15 +328,17 @@ synthesiseInitModule moduleName superKernelName programs allKernelArgsMap kernel
                     usesString = foldl (\accum item -> accum ++ synthesisUses twoTab item) "" extractedUses 
 
                     kernelDeclarations = map (\(kernel_ast, prog_ast) -> generateKernelDeclarations prog_ast kernel_ast) kernelAsts
-                    (readDecls, writtenDecls, generalDecls) =  foldl (\(accum_r, accum_w, accum_g) (r, w, g) -> (accum_r ++ r, accum_w ++ w, accum_g ++ g)) ([],[],[]) kernelDeclarations
+                    kernelLoopVars = nub $ foldl (++) [] $ map (\t -> getLoopVars (fst t)) kernelAsts
+                    (readDecls, writtenDecls, readWriteDecls) =  foldl (\(accum_r, accum_w, accum_g) (r, w, g) -> (accum_r ++ r, accum_w ++ w, accum_g ++ g)) ([],[],[]) kernelDeclarations
                     -- WV: The parameter declarations are missing. The simplest, crudest way to fix this is by taking *all* parameter decls from all subs and nub them.
                     -- WV: This blatantly ignores conflicts in parameter names
 --                    paramDeclsStr = unlines $ map miniPPD $ filter isParamDecl $ nub $ map context_parse $ foldl1 (++) $ map (\(k,v) -> subSrcLines v) (DMap.toList orig_subrecs)
                     paramDeclsStr = concat $ nub $ map (\decl ->twoTab++(miniPPD decl)) $ concatMap (extractParamDecls . subAst) (DMap.elems orig_subrecs)
 
                     -- WV this is not correct, there are way too many because none of the local scalar variables needs to be here!
-                    declarations = foldl collectDecls [] (readDecls ++ writtenDecls ++ generalDecls ++ [statePtrDecl])
-                    declarations_noIntent = map (removeIntentFromDecl) declarations
+                    declarations_maybe_with_loop_vars = foldl collectDecls [] (readDecls ++ writtenDecls ++ readWriteDecls ++ [statePtrDecl])
+                    declarations = filter (\elt -> not ((extractAssigneeFromDecl elt) `elem` kernelLoopVars  ) ) declarations_maybe_with_loop_vars
+                    declarations_noIntent = map removeIntentFromDecl declarations
                     declarationsStr = foldl (\accum item -> accum ++ synthesiseDecl twoTab item) "" declarations_noIntent
 
                     makeBuffers = map (synthesiseBufferMake twoTab) declarations
@@ -408,9 +410,9 @@ synthesiseSuperKernel moduleName tabs name programs kernels = if allKernelArgs =
                     allKernelArgsMap = foldl (\dmap (arg, index) -> DMap.insert arg index dmap) DMap.empty (zip allKernelArgs ([1..(length allKernelArgs)]))
 
                     kernelDeclarations = map (\(kernel_ast, prog_ast) -> generateKernelDeclarations prog_ast kernel_ast) kernelAsts
-                    (readDecls, writtenDecls, generalDecls) =  foldl (\(accum_r, accum_w, accum_g) (r, w, g) -> (accum_r ++ r, accum_w ++ w, accum_g ++ g)) ([],[],[]) kernelDeclarations
+                    (readDecls, writtenDecls, readWriteDecls) =  foldl (\(accum_r, accum_w, accum_g) (r, w, g) -> (accum_r ++ r, accum_w ++ w, accum_g ++ g)) ([],[],[]) kernelDeclarations
 
-                    declarations = map (convertScalarToOneDimArray) (foldl (collectDecls) [] (readDecls ++ writtenDecls ++ generalDecls))
+                    declarations = map (convertScalarToOneDimArray) (foldl (collectDecls) [] (readDecls ++ writtenDecls ++ readWriteDecls))
                     declarationsStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" declarations
 
                     stateVarDeclStr = synthesiseDecl tabs stateVarDecl
@@ -724,7 +726,7 @@ synthesiseOpenCLMap inTabs originalLines orig_ast programInfo (OpenCLMap anno sr
                                                                     ++ "! WRITTEN\n"
                                                                     ++ writtenDeclStr
                                                                     ++ "! READ & WRITTEN\n"
-                                                                    ++ generalDeclStr
+                                                                    ++ readWriteDeclStr
                                                                     ++ "! globalIdDeclaration\n"
                                                                     ++ tabs ++ globalIdDeclaration
                                                                     ++ "! globalIdInitialisation\n"
@@ -751,24 +753,28 @@ synthesiseOpenCLMap inTabs originalLines orig_ast programInfo (OpenCLMap anno sr
                                                 kernelName = generateKernelName "map" src w
                                                 globalIdVar = generateVar (VarName nullAnno "global_id")
                                                 tabs = inTabs ++ tabInc
+                                                
 
-                                                readArgs = listSubtract r w
-                                                writtenArgs = listSubtract w r
-                                                generalArgs = listIntersection w r
-
+                                                --WV: extractKernelArguments takes the read and written lists from the OpenCL* nodes and removes the loop iterators from that list as they should always be local
                                                 allArgs = extractKernelArguments (OpenCLMap anno src r w l il fortran)       -- WV20170426
                                                 -- WV: local variable declarations
                                                 (localVarsStr,localDeclStrs,paramDeclStrs) = getLocalDeclStrs allArgs orig_decls_stmts originalLines tabs kernelName
                                                 -- WV: declarations for _range and _rel
                                                 range_rel_decls_str = generateRangeRelDecls l tabs --  we can do this because they *must* be integers    
-                                                (readDecls, writtenDecls, generalDecls, ptrAssignments_fseq, allArgs_ptrAdaption) = adaptForReadScalarDecls allArgs (generateKernelDeclarations prog (OpenCLMap anno src r w l il fortran)) -- WV20170426
+                                                (readDecls', writtenDecls', readWriteDecls', ptrAssignments_fseq, allArgs_ptrAdaption) = 
+                                                    adaptForReadScalarDecls allArgs (generateKernelDeclarations prog (OpenCLMap anno src r w l il fortran)) -- WV20170426
                                                 allArgs_ptrAdaptionStr = case allArgs_ptrAdaption of
                                                             [] -> ""
                                                             args -> foldl (\accum item -> accum ++ "," ++ varNameStr item) (varNameStr (head args)) (tail args)
+                                                loopVars = map (\(v,_,_,_) -> v) l
+                                                readDecls = filter (\elt -> not ((extractAssigneeFromDecl elt) `elem`  loopVars ) ) readDecls'
+                                                writtenDecls = filter (\elt -> not ((extractAssigneeFromDecl elt) `elem`  loopVars ) ) writtenDecls'
+                                                readWriteDecls = filter (\elt -> not ((extractAssigneeFromDecl elt) `elem`  loopVars ) ) readWriteDecls'
+                                                            
 
                                                 readDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" readDecls
                                                 writtenDeclStr = foldl (\accum item -> accum ++ synthesiseDecl (tabs) item) "" (writtenDecls)
-                                                generalDeclStr = foldl (\accum item -> accum ++ synthesiseDecl (tabs) item) "" (generalDecls)
+                                                readWriteDeclStr = foldl (\accum item -> accum ++ synthesiseDecl (tabs) item) "" (readWriteDecls)
 
                                                 globalIdDeclaration = "integer :: " ++ outputExprFormatting globalIdVar ++ "\n"
                                                 globalIdInitialisation = "call " ++ outputExprFormatting (getGlobalID globalIdVar) ++ "\n"
@@ -907,7 +913,7 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
                                                                             ++ "\n"
                                                                             ++ readDeclStr
                                                                             ++ writtenDeclStr
-                                                                            ++ generalDeclStr
+                                                                            ++ readWriteDeclStr
                                                                             ++ "\n"
                                                                             ++ "#if NTH > 1\n"
                                                                             ++ tabs ++ "! Arrays prefixed with \'local_\' should be declared using the \'__local\' modifier in C kernel version\n"
@@ -957,9 +963,9 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
                                                 usesString = foldl (\accum item -> accum ++ synthesisUses tabs item) "" extractedUses 
 
                                                 reductionVarNames = map (\(varname, expr) -> varname) rv
-                                                readVarNames = listSubtract (listSubtract r w) reductionVarNames
-                                                writtenVarNames = listSubtract (listSubtract w r) reductionVarNames
-                                                generalVarNames = listSubtract (listIntersection w r) reductionVarNames
+                                                -- readVarNames = listSubtract (listSubtract r w) reductionVarNames
+                                                -- writtenVarNames = listSubtract (listSubtract w r) reductionVarNames
+                                                -- readWriteVarNames = listSubtract (listIntersection w r) reductionVarNames
 
                                                 localIdVar = generateVar (VarName nullAnno "local_id")
                                                 localIdFortranVar = generateVar (VarName nullAnno "local_id_fortran")
@@ -998,14 +1004,14 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
                                                 -- WV: declarations for _range and _rel
                                                 range_rel_decls_str = generateRangeRelDecls l tabs --  we can do this because they *must* be integers                                                
                                                 
-                                                (readDecls, writtenDecls, generalDecls, ptrAssignments, allArgs_ptrAdaption) = adaptForReadScalarDecls (allArgs++missingArgs) (generateKernelDeclarations prog (OpenCLReduce anno src r w l il rv fortran)) -- WV20170426
+                                                (readDecls, writtenDecls, readWriteDecls, ptrAssignments, allArgs_ptrAdaption) = adaptForReadScalarDecls (allArgs++missingArgs) (generateKernelDeclarations prog (OpenCLReduce anno src r w l il rv fortran)) -- WV20170426
                                                 allArgs_ptrAdaptionStr = case allArgs_ptrAdaption of
                                                             [] -> ""
                                                             args -> foldl (\accum item -> accum ++ "," ++ varNameStr item) (varNameStr (head args)) (tail args)
 
                                                 readDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" (readDecls)
                                                 writtenDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" (writtenDecls)
-                                                generalDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" (generalDecls)
+                                                readWriteDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" (readWriteDecls)
                                                 
                                                 local_reductionVars = map (generateLocalReductionVar) reductionVarNames
                                                 local_reductionVarsInitStr = foldl (\accum (var, expr) -> accum ++ tabs ++ "local_" ++ varNameStr var ++ " = " ++ outputExprFormatting expr ++ "\n") "" rv
@@ -1099,9 +1105,9 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLMap anno src r w l il fortr
             where
                 readArgs = map (varNameStr) (listSubtract r w)
                 writtenArgs = map (varNameStr) (listSubtract w r)
-                generalArgs = map (varNameStr) (listIntersection w r)
+                readWriteArgs = map (varNameStr) (listIntersection w r)
 
-                allArguments = readArgs ++ writtenArgs ++ generalArgs
+                allArguments = readArgs ++ writtenArgs ++ readWriteArgs
                 allArgumentsStr = case allArguments of
                                     [] -> "NO ARGS"
                                     _ -> (head allArguments) ++ foldl (\accum item -> accum ++ "," ++ item) "" (tail allArguments)
@@ -1111,10 +1117,10 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLMap anno src r w l il fortr
                 kernelName = (generateKernelName "map" src w)
                 stateName = generateStateName kernelName
 
-                bufferWrites = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Write") (readDecls ++ generalDecls ++ [statePtrDecl]))
-                bufferReads = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Read") (writtenDecls ++ generalDecls))
+                bufferWrites = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Write") (readDecls ++ readWriteDecls ++ [statePtrDecl]))
+                bufferReads = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Read") (writtenDecls ++ readWriteDecls))
 
-                (readDecls, writtenDecls, generalDecls) = generateKernelDeclarations progAst (OpenCLMap anno src r w l il fortran) -- WV20170426
+                (readDecls, writtenDecls, readWriteDecls) = generateKernelDeclarations progAst (OpenCLMap anno src r w l il fortran) -- WV20170426
 
 
 {-
@@ -1155,11 +1161,11 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLReduce anno src r w l il rv
                 global_reductionArrays = map (generateGlobalReductionArray) reductionVarNames
                 readArgs = listSubtract r w
                 writtenArgs = listSubtract w r
-                generalArgs = listIntersection w r
+                readWriteArgs = listIntersection w r
 
                 allArguments =     (map (varNameStr) 
                                     (listSubtract 
-                                        (readArgs ++ writtenArgs ++ generalArgs ++ global_reductionArrays) 
+                                        (readArgs ++ writtenArgs ++ readWriteArgs ++ global_reductionArrays) 
                                         reductionVarNames)) 
                 allArgumentsStr = case allArguments of
                                     [] -> "NO ARGS"
@@ -1170,14 +1176,14 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLReduce anno src r w l il rv
                 kernelName = (generateKernelName "reduce" src (map (\(v, e) -> v) rv)) 
                 stateName = generateStateName kernelName
 
-                bufferWrites = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Write") (readDecls ++ generalDecls ++ [statePtrDecl]))
-                -- bufferReads = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Read") (writtenDecls ++ generalDecls))
+                bufferWrites = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Write") (readDecls ++ readWriteDecls ++ [statePtrDecl]))
+                -- bufferReads = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Read") (writtenDecls ++ readWriteDecls))
                 -- bufferReads_rv = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Read") (global_reductionArraysDecls))
                 -- make the declarations unique
-                uniqueDecls = nub (writtenDecls ++ generalDecls ++ global_reductionArraysDecls)
+                uniqueDecls = nub (writtenDecls ++ readWriteDecls ++ global_reductionArraysDecls)
                 bufferReads = unlines (map (synthesiseBufferAccess tabs "Read") uniqueDecls)
 
-                (readDecls, writtenDecls, generalDecls) = generateKernelDeclarations progAst (OpenCLReduce anno src r w l il rv fortran) -- WV20170426
+                (readDecls, writtenDecls, readWriteDecls) = generateKernelDeclarations progAst (OpenCLReduce anno src r w l il rv fortran) -- WV20170426
 
                 global_reductionArraysDecls = map (\x -> declareGlobalReductionArray x (nunitsVar) progAst) reductionVarNames
 

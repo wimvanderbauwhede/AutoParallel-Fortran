@@ -416,9 +416,7 @@ stripInitAndTearDown varAccessAnalysis (kernelsStart, kernelsEnd) kernels = (new
 
             (recursiveKernels, recursiveInitialisingWrites, recursiveTearDownReads) = stripInitAndTearDown varAccessAnalysis (kernelsStart, kernelsEnd) (tail kernels)
 
-getIterLoopVars (OpenCLMap _ _ vrs vws lvars ilvars stmt1) = ilvars
-getIterLoopVars (OpenCLReduce _ _ vrs vws lvars ilvars rvarexprs stmt1) = ilvars
-getIterLoopVars _ = []
+
 --    Taking the kernels in the order that they are called by the subroutines, and in the order that the subroutines are called by the host, eliminate pairs of
 --    arguments that cancel each other out. For example, kernel A writes back var x and kernel B reads it again soon after, with no host interaction - in this case,
 --    both the read and the write of x can be removed from the respective kernels.
