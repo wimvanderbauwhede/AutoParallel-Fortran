@@ -75,9 +75,14 @@ main = do
     let cppDFlags = DMap.findWithDefault [] cppDefineFlag argMap
 
     -- < STEP 2 : Parsing >
-    parsedPrograms <- mapM (parseFile cppDFlags fixedForm) filenames
-    parsedMain <- parseFile cppDFlags fixedForm mainFilename
-
+--    parsedPrograms <- mapM (parseFile cppDFlags fixedForm) filenames
+    parsedPrograms_stashes <- mapM (parseFile cppDFlags fixedForm) filenames
+    let
+        (parsedPrograms,stashes) = unzip parsedPrograms_stashes
+    mapM (putStr . show) stashes
+--    parsedMain <- parseFile cppDFlags fixedForm mainFilename
+    (parsedMain,mainStash) <- parseFile cppDFlags fixedForm mainFilename
+    putStr $ show mainStash
     -- < STEP 3 : Construct subroutine AST lists>
     let parsedSubroutines' = constructSubroutineTable (zip parsedPrograms filenames)
     let subroutineNames = DMap.keys parsedSubroutines'
@@ -122,7 +127,7 @@ main = do
     putStrLn $ compilerName ++ ": Synthesising OpenCL files"
     -- WV: added parsedSubroutines
     -- WV: This is a bit strange, to deal with the kernel and host-side code in one step
-    emit outDirectory cppDFlags fixedForm fileCoordinated_parallelisedList fileCoordinated_bufferOptimisedPrograms argTranslations (newMainAst, mainFilename) [] [] parsedSubroutines -- < STEP 8 > 
+    emit outDirectory cppDFlags fixedForm fileCoordinated_parallelisedList fileCoordinated_bufferOptimisedPrograms argTranslations (newMainAst, mainFilename) [] [] parsedSubroutines (mainStash,stashes) -- < STEP 8 > 
 
 filenameFlag = "-modules"
 outDirectoryFlag = "-out"

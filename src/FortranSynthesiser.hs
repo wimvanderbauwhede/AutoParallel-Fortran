@@ -49,10 +49,11 @@ readOriginalFileLines :: [String] -> Bool -> String -> IO ([String])
 readOriginalFileLines cppDFlags fixedForm filename = do
                 content <- cpp cppDFlags fixedForm filename
                 let contentLines = lines content
+                return contentLines
                 -- so here I have to go through these lines, and find 'use' declarations, and substitute these 
                 --let 
 --                expandedContentLines <- foldlM (++) [] $ 
-                inlineDeclsFromUsedModules contentLines 
+--                inlineDeclsFromUsedModules contentLines 
 
 
 defaultFilename :: [String] -> String
@@ -107,6 +108,7 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
                                                                                                                             -- ++     everything (++) (mkQ "" (produceCodeBlock allKernelArgsMap emptyArgumentTranslation progWithFilename nonGeneratedBlockCode_indent originalLines)) blockWithInit
                                                                                                                             ++     everything (++) (mkQ "" (produceCodeBlock allKernelArgsMap emptyArgumentTranslation progWithFilename nonGeneratedBlockCode_indent originalLines maybeOclInitCall)) block
                                                                                                                             ++    containedProgUnitCode
+                                                                                                                            -- ++ "! Footer (produceCode_progUnit a)\n"
                                                                                                                             ++    nonGeneratedFooterCode
   where
             (Block blockAnno useBlock implicit blockSrc blockDecl blockFortran) = block
@@ -133,9 +135,10 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
     if (length originalLines == 0) 
         then "" 
         else 
-            nonGeneratedHeaderCode 
-                                                                                                                                ++     containedProgUnitCode
-                                                                                                                                ++    nonGeneratedFooterCode
+            nonGeneratedHeaderCode ++
+            containedProgUnitCode ++
+           -- "! Footer (produceCode_progUnit b)\n" ++
+            nonGeneratedFooterCode
   where
             firstProgUnitSrc = srcSpan (head progUnits)
             lastProgUnitSrc = srcSpan (last progUnits)
@@ -162,6 +165,7 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
                                                 ++ nonGeneratedBlockCode_indent ++ "real (kind=4) :: exectime\n"
                                                 ++ global_reductionArraysDeclStr
                                                 ++ everything (++) (mkQ "" (produceCodeBlock allKernelArgsMap argTranslation progWithFilename nonGeneratedBlockCode_indent originalLines Nothing)) block
+                                                -- ++ "! Footer (produceCode_progUnit c)\n"
                                                 ++ nonGeneratedFooterCode    
         where
             firstFortranSrc = head (everything (++) (mkQ [] (getFirstFortranSrc)) block)
@@ -221,7 +225,7 @@ produceCodeBlock allKernelArgsMap argTranslation prog tabs originalLines maybePr
                                                                             ++    shapeStatements ++ "\n"
                                                                             ++    loadBufferStatements ++ "\n"
                                                                             ++     produceCode_fortran prog tabs originalLines fort
-                                                                            -- ++    "! Start of footer\n"
+                                                                            -- ++    "! Start of footer produceCodeBlock\n"
                                                                             ++    nonGeneratedFooterCode
                                                                             -- ++    "! End of block\n"
         where
@@ -236,7 +240,7 @@ produceCodeBlock allKernelArgsMap argTranslation prog tabs originalLines maybePr
             
             ((SrcLoc _ nonGeneratedFooter_ls _), (SrcLoc _ nonGeneratedFooter_le _)) = nonGeneratedFooterSrc
 --            nonGeneratedFooterCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedFooter_ls+1..nonGeneratedFooter_le-1]
-            nonGeneratedFooterCode = extractOriginalCode_Offset1 originalLines nonGeneratedFooterSrc
+            nonGeneratedFooterCode = extractOriginalCode_Offset (1,-1) originalLines nonGeneratedFooterSrc
 
             nonGeneratedBlockCode_indent 
                 | length originalLines < fortran_ls = "      " -- 
@@ -275,7 +279,7 @@ produceCode_fortran prog tabs originalLines codeSeg = case codeSeg of
                         FSeq _ _ fortran1 fortran2 -> (mkQ "" (produceCode_fortran prog tabs originalLines) fortran1) ++ (mkQ "" (produceCode_fortran prog tabs originalLines) fortran2)
                         _ ->     case anyChildGenerated codeSeg || isGenerated codeSeg of
                                     True -> foldl (++) tabs (gmapQ (mkQ "" (produceCode_fortran prog "" originalLines)) codeSeg)
-                                    False -> extractOriginalCode originalLines (srcSpan codeSeg)
+                                    False ->  extractOriginalCode originalLines (srcSpan codeSeg)
 
 synthesiseInitModule :: String -> String ->  [(Program Anno, String)] -> KernelArgsIndexMap -> [(String, String)] -> SubroutineTable -> String
 synthesiseInitModule moduleName superKernelName programs allKernelArgsMap kernels orig_subrecs =     
@@ -754,8 +758,9 @@ synthesiseOpenCLMap inTabs originalLines orig_ast programInfo (OpenCLMap anno sr
                                                 globalIdVar = generateVar (VarName nullAnno "global_id")
                                                 tabs = inTabs ++ tabInc
                                                 allArgs = extractKernelArguments (OpenCLMap anno src r w l il fortran)       -- WV20170426
+                                                allKernelVars = extractAllVarNames fortran
                                                 -- WV: local variable declarations
-                                                (localVarsStr,localDeclStrs,paramDeclStrs) = getLocalDeclStrs allArgs orig_decls_stmts originalLines tabs kernelName
+                                                (localVarsStr,localDeclStrs,paramDeclStrs) = getLocalDeclStrs allArgs allKernelVars orig_decls_stmts originalLines tabs kernelName
                                                 -- WV: declarations for _range and _rel
                                                 range_rel_decls_str = generateRangeRelDecls l tabs --  we can do this because they *must* be integers    
                                                 (readDecls', writtenDecls', readWriteDecls', ptrAssignments_fseq, allArgs_ptrAdaption) = 
@@ -790,15 +795,19 @@ generateRangeRelDecls loopvartups tabs =
     in
         unlines $ rangevardecls ++ relvardecls
 
-getLocalDeclStrs :: [VarName Anno] -> (Decl Anno, Fortran Anno) -> [String] -> String -> String -> (String,String,String)
-getLocalDeclStrs allArgs orig_decls_stmts originalLines tabs kernelName =
+getLocalDeclStrs :: [VarName Anno] -> [VarName Anno] -> (Decl Anno, Fortran Anno) -> [String] -> String -> String -> (String,String,String)
+getLocalDeclStrs allArgs allKernelVars orig_decls_stmts originalLines tabs kernelName =
     let
                                                 allArgs_strs = map varNameStr allArgs
                                                 allVars' =  extractAllVarNames fortran -- (warning fortran ("\n! KERNEL: "++kernelName++"\n"++(miniPPF fortran)))
-                                                allVars = Data.Set.toList $ Data.Set.fromList allVars' -- this is a trick to remove duplicates
+                                                allVars = nub allVars' 
                                                 allVars_strs = map varNameStr allVars
                                                 (decls,fortran) = orig_decls_stmts -- WV: TODO: currently unused
-                                                localVars_strs = filter (\var -> not (var `elem` allArgs_strs)) allVars_strs -- so here u0 and test are missing from allVars AND from allArgs
+                                                localVars_strs' = filter (\var -> not (var `elem` allArgs_strs)) allVars_strs -- so here u0 and test are missing from allVars AND from allArgs
+                                                -- WV of these localVars_strs, only the ones occuring in the kernel should be retained
+                                                -- WV so we need allKernelVars_strs 
+                                                allKernelVars_strs  = map varNameStr allKernelVars
+                                                localVars_strs = filter (\var ->  (var `elem` allKernelVars_strs)) localVars_strs'
                                                 localVarsStr =  "! Local vars: "++ ( intercalate "," localVars_strs) ++"\n" -- ++(miniPPD decls);
                                                 -- so now I need to get the corresponding declarations from the original subroutine
                                                 -- FIXME: GD's code assumes only one subroutine per filename and also that the sub and the file have the same name! getModuleName just removes the extension!
@@ -990,13 +999,14 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
                                                 allArgs = extractKernelArguments (OpenCLReduce anno src r w l il rv fortran) -- WV: this is incorrect, these are only *some* args -- WV20170426
                                                 -- FIXME: so here I am adding the missing ones. Instead I should figure out what's wrong with the r/w arguments
                                                 allArgs_strs = map varNameStr allArgs
+                                                allKernelVars = extractAllVarNames fortran
                                                 -- all args from the original subroutine used in the loop body
                                                 (loopkernel_localvars_strs, loopkernel_args_strs) = getArgsAndLocalVarsForLoopBody fortran prog
                                                 allArgsStr = tabs ++ "ALL ARGS: "++  ( intercalate "," allArgs_strs ) ++"\n"
                                                 origArgsStr = tabs ++ "ORIG ARGS USED IN LOOP BODY: "++ ( intercalate "," loopkernel_args_strs)++"\n"
                                                 missingArgs_strs = filter (\arg -> not (arg `elem` allArgs_strs)) loopkernel_args_strs
                                                 missingArgs = map (\arg -> (VarName nullAnno arg)) missingArgs_strs
-                                                (localVarsStr,localDeclStrs,paramDeclStrs) = getLocalDeclStrs (allArgs++missingArgs++reductionVarNames) orig_decls_stmts originalLines tabs kernelName
+                                                (localVarsStr,localDeclStrs,paramDeclStrs) = getLocalDeclStrs (allArgs++missingArgs++reductionVarNames) allKernelVars orig_decls_stmts originalLines tabs kernelName
                                                 (missingArgsStr,missingArgDeclsStr) = getMissingArgDeclStrs missingArgs_strs originalLines tabs
                                                 -- WV: declarations for _range and _rel
                                                 range_rel_decls_str = generateRangeRelDecls l tabs --  we can do this because they *must* be integers                                                

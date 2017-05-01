@@ -28,8 +28,8 @@ import SubroutineTable                     (
 import FortranSynthesiser
 
 -- fileCoordinated_parallelisedList fileCoordinated_bufferOptimisedPrograms argTranslations (newMainAst, mainFilename) [] []
-emit :: String -> [String] -> Bool -> [(Program Anno, String)] -> [(Program Anno, String)] -> SubroutineArgumentTranslationMap -> (Program Anno, String) -> [VarName Anno] -> [VarName Anno] -> SubroutineTable -> IO [()]
-emit specified cppDFlags fixedForm programs_verboseArgs programs_optimisedBuffers argTranslations (mainAst, mainFilename) initWrites tearDownReads orig_asts = do
+emit :: String -> [String] -> Bool -> [(Program Anno, String)] -> [(Program Anno, String)] -> SubroutineArgumentTranslationMap -> (Program Anno, String) -> [VarName Anno] -> [VarName Anno] -> SubroutineTable -> ((String, DMap.Map Int [String]),[(String, DMap.Map Int [String])]) -> IO [()]
+emit specified cppDFlags fixedForm programs_verboseArgs programs_optimisedBuffers argTranslations (mainAst, mainFilename) initWrites tearDownReads orig_asts (mainStash, stashes) = do
 
 --                kernels_code <- mapM (emitKernelsM cppDFlags fixedForm orig_asts) programs_verboseArgs 
                 let kernels_code = map (emitKernels cppDFlags fixedForm orig_asts) programs_verboseArgs 
@@ -48,15 +48,33 @@ emit specified cppDFlags fixedForm programs_verboseArgs programs_optimisedBuffer
                 -- WV: TODO: use orig_asts
                 host_code <- mapM (produceCode_prog allKernelArgsMap argTranslations cppDFlags fixedForm moduleName superkernelName) programs_optimisedBuffers
                 main_code <- produceCode_prog allKernelArgsMap argTranslations cppDFlags fixedForm moduleName superkernelName ( mainAst , mainFilename)
-
+                --WV: now I need to parse this generated code, i.e. unlines it and inspect the lines an substitute the labeled lines for their contents from the stash
+                let
+                    main_code' = restoreIfDefRegions main_code mainStash
                 let host_programs = zip host_code (map (\x -> specified ++ "/" ++ x ++ "_host.f95") originalFilenames)
 
                 writeFile moduleFilename (if fixedForm then fixedFormFormat superKernel_module else superKernel_module)
-                writeFile newMainFilename (if fixedForm then fixedFormFormat main_code else main_code)
+                writeFile newMainFilename (if fixedForm then fixedFormFormat main_code' else main_code')
                 writeFile initModuleFilename (if fixedForm then fixedFormFormat initModule else initModule)
 
                 mapM (\(code, filename) -> writeFile filename (if fixedForm then fixedFormFormat code else code)) host_programs
 
+restoreIfDefRegions :: String -> (String, DMap.Map Int [String]) -> String                
+restoreIfDefRegions code (fname,stash) =  unlines $ map (restoreIfDefRegion stash) (lines code)
+
+restoreIfDefRegion ::  DMap.Map Int [String] -> String -> String
+restoreIfDefRegion stash line 
+    | length chunks == 2 && chunks !! 1 == "continue" = 
+        let
+            maybe_label_str = head $ words line
+            maybe_label = read maybe_label_str :: Int
+        in
+            case DMap.lookup maybe_label stash of
+                Just original_lines -> unlines original_lines
+                Nothing -> line
+    | otherwise = line
+  where
+   chunks = words line  
 
 fixedFormFormat :: String -> String
 fixedFormFormat inputStr = foldl (\accum item -> accum ++ "\n" ++ (fixedFormFormat_line item)) "" allLines

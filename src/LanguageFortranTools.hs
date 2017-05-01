@@ -11,7 +11,7 @@ import System.Process
 import System.Directory
 import Text.Read
 import qualified Data.Map as DMap
-
+import Warning (warning)
 
 import Language.Fortran.Parser  ( parse ) -- note: parse :: String -> Program (DMap.Map String [String]) -- 
 import Language.Fortran
@@ -30,40 +30,84 @@ nullAnno :: Anno
 nullAnno = DMap.empty
 
 --    Taken from language-fortran example. Runs preprocessor on target source and then parses the result, returning an AST.
-parseFile :: [String] -> Bool -> String -> IO (Program Anno, [String])
+parseFile :: [String] -> Bool -> String -> IO ( (Program Anno, [String]) , (String, DMap.Map Int [String]))
 parseFile cppArgs fixedForm filename = do 
+    (preproc_inp, stash) <- preProcessingHelper cppArgs fixedForm filename
+    let
+        preproc_inp_lines = lines preproc_inp
+    return ((parse  preproc_inp, preproc_inp_lines),(filename, stash))
+    --return (parse  preproc_inp, preproc_inp_lines) -- ,(filename, stash))
+
+{-
     let dFlagList = if length cppArgs > 0
         then foldl (\accum item -> accum ++ ["-D"++item]) [] cppArgs
         else  []
     let dFlagStr = if length dFlagList == 0 then  "" else unwords dFlagList    
     let cpp_cmd = "cpp -P "++dFlagStr++ " "++filename
     putStrLn cpp_cmd
---    print dFlagStr
---                                let dFlagList = foldl (\accum item -> accum ++ ["-D"++ item]) [] cppArgs
---    inp <- readProcess ("cpp -P "++dFlagStr)  [] "" -- (["-P "]++dFlagList++[filename]) "" 
-    
     inp <- readCreateProcess (shell cpp_cmd) ""
---    (_, Just inp, _, _) <- createProcess (proc "cpp"  (["-P "]++dFlagList++[filename]) ){ std_out = CreatePipe }
---    putStr inp    
---                                putStrLn filename
     let
         contentLines = lines inp
     exp_inp_lines <- inlineDeclsFromUsedModules contentLines                                
     let 
         inp' = unlines exp_inp_lines 
     let
-        preproc_inp = preProcess fixedForm inp'
-        preproc_inp_lines = lines preproc_inp
+        (preproc_inp, stash) = preProcess fixedForm inp'
+        preproc_inp_lines = lines (warning preproc_inp preproc_inp)
     return (parse  preproc_inp, preproc_inp_lines)
 
+-}
+
+cpp :: [String] -> Bool -> String -> IO String
+cpp cppArgs fixedForm filename = do 
+    (preproc_inp, _) <- preProcessingHelper cppArgs fixedForm filename
+    return preproc_inp
+
+{-
 cpp cppArgs fixedForm filename = do     
     let dFlagList = if length cppArgs > 0
         then foldl (\accum item -> accum ++ ["-D", item]) [] cppArgs
         else  []
-    let dFlagStr = if length dFlagList == 0 then  "D__GO_GO_7188__" else unwords dFlagList    
-    inp <- readProcess "cpp" ["-P",dFlagStr,filename] ""
+    let dFlagStr = if length dFlagList == 0 then  "" else unwords dFlagList    
+    let cpp_cmd = "cpp -P "++dFlagStr++ " "++filename
+    putStrLn cpp_cmd
+    inp <- readCreateProcess (shell cpp_cmd) ""
+    -- inp <- readProcess "cpp" ["-P",dFlagStr,filename] ""
+    inp <- readCreateProcess (shell cpp_cmd) ""
     let
-    return $ preProcess fixedForm inp
+        contentLines = lines inp
+    exp_inp_lines <- inlineDeclsFromUsedModules contentLines                                
+    let 
+        inp' = unlines exp_inp_lines 
+    let
+        (preproc_inp, stash) = preProcess fixedForm inp'
+    return preproc_inp
+-}    
+
+preProcessingHelper :: [String] -> Bool -> String -> IO (String, DMap.Map Int [String])
+preProcessingHelper cppArgs fixedForm filename = do 
+    let dFlagList = if length cppArgs > 0
+        then foldl (\accum item -> accum ++ ["-D"++item]) [] cppArgs
+        else  []
+    let dFlagStr = if length dFlagList == 0 then  "" else unwords dFlagList    
+--    let cpp_cmd = "cpp -P "++dFlagStr++ " "++filename
+--    putStrLn cpp_cmd
+--    inp <- readCreateProcess (shell cpp_cmd) ""
+    inp <- readFile filename
+    let
+        contentLines = lines inp
+    exp_inp_lines <- inlineDeclsFromUsedModules contentLines                                
+    let 
+        inp' = unlines exp_inp_lines 
+    let
+        (preproc_inp, stash) = preProcess fixedForm inp'
+    writeFile ("./tmp.f95") preproc_inp   
+    let cpp_cmd = "cpp -P "++dFlagStr++ " ./tmp.f95"
+    putStrLn cpp_cmd
+    preproc_inp' <- readCreateProcess (shell cpp_cmd) ""
+    return (preproc_inp', stash)
+
+
 
 --    Used by analyseLoop_map to format the information on the position of a particular piece of code that is used as the information
 --    output to the user
