@@ -10,7 +10,7 @@ where
 --    that represents a the loop fusion bound (the limit of how different the end values for two loops can be for them to be fused). If this input is 'Nothing'
 --    then no bound is enforced and all loops that meet the other fusion criteria are fused.
 
-import Data.Generics             (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
+import Data.Generics             (Data, mkT, everywhere)
 import Language.Fortran
 
 import LanguageFortranTools

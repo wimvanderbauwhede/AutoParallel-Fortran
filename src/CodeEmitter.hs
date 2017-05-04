@@ -28,11 +28,11 @@ import SubroutineTable                     (
 import FortranSynthesiser
 
 -- fileCoordinated_parallelisedList fileCoordinated_bufferOptimisedPrograms argTranslations (newMainAst, mainFilename) [] []
-emit :: String -> [String] -> Bool -> [(Program Anno, String)] -> [(Program Anno, String)] -> SubroutineArgumentTranslationMap -> (Program Anno, String) -> [VarName Anno] -> [VarName Anno] -> SubroutineTable -> ((String, DMap.Map Int [String]),[(String, DMap.Map Int [String])]) -> IO [()]
-emit specified cppDFlags fixedForm programs_verboseArgs programs_optimisedBuffers argTranslations (mainAst, mainFilename) initWrites tearDownReads orig_asts (mainStash, stashes) = do
+emit :: String -> [String] -> [String] -> Bool -> [(Program Anno, String)] -> [(Program Anno, String)] -> SubroutineArgumentTranslationMap -> (Program Anno, String) -> [VarName Anno] -> [VarName Anno] -> SubroutineTable -> ((String, DMap.Map Int [String]),[(String, DMap.Map Int [String])]) -> IO [()]
+emit specified cppDFlags cppXFlags fixedForm programs_verboseArgs programs_optimisedBuffers argTranslations (mainAst, mainFilename) initWrites tearDownReads orig_asts (mainStash, stashes) = do
 
 --                kernels_code <- mapM (emitKernelsM cppDFlags fixedForm orig_asts) programs_verboseArgs 
-                let kernels_code = map (emitKernels cppDFlags fixedForm orig_asts) programs_verboseArgs 
+                let kernels_code = map (emitKernels orig_asts) programs_verboseArgs 
                 let allKernels = foldl (++) [] kernels_code
                 let kernelNames = map snd allKernels
 
@@ -46,8 +46,8 @@ emit specified cppDFlags fixedForm programs_verboseArgs programs_optimisedBuffer
                 let (superKernel_module, allKernelArgsMap) = synthesiseSuperKernelModule moduleName superkernelName programs_verboseArgs allKernels
                 let initModule = synthesiseInitModule moduleName superkernelName programs_verboseArgs allKernelArgsMap allKernels orig_asts
                 -- WV: TODO: use orig_asts
-                host_code <- mapM (produceCode_prog allKernelArgsMap argTranslations cppDFlags fixedForm moduleName superkernelName) programs_optimisedBuffers
-                main_code <- produceCode_prog allKernelArgsMap argTranslations cppDFlags fixedForm moduleName superkernelName ( mainAst , mainFilename)
+                host_code <- mapM (produceCode_prog allKernelArgsMap argTranslations cppDFlags cppXFlags fixedForm moduleName superkernelName) programs_optimisedBuffers
+                main_code <- produceCode_prog allKernelArgsMap argTranslations cppDFlags cppXFlags fixedForm moduleName superkernelName ( mainAst , mainFilename)
                 --WV: now I need to parse this generated code, i.e. unlines it and inspect the lines an substitute the labeled lines for their contents from the stash
                 let
                     main_code' = restoreIfDefRegions main_code mainStash
@@ -135,9 +135,8 @@ getSubRec  orig_asts filename = let
 
 
 
-emitKernelsM :: [String] -> Bool -> SubroutineTable -> (Program Anno, String) -> IO [(String, String)]
-emitKernelsM cppDFlags fixedForm orig_asts (ast, filename) = do
---                originalLines <- readOriginalFileLines cppDFlags fixedForm filename
+emitKernelsM :: SubroutineTable -> (Program Anno, String) -> IO [(String, String)]
+emitKernelsM orig_asts (ast, filename) = do
                 let originalLines = subSrcLines (getSubRec  orig_asts filename)
                 -- WV: seems to me this is simply "unlines"; and it is unused too
                 -- let originalListing = case originalLines of
@@ -151,8 +150,8 @@ emitKernelsM cppDFlags fixedForm orig_asts (ast, filename) = do
 
 
 
-emitKernels :: [String] -> Bool -> SubroutineTable -> (Program Anno, String) -> [(String, String)]
-emitKernels cppDFlags fixedForm orig_asts (ast, filename) = let
+emitKernels :: SubroutineTable -> (Program Anno, String) -> [(String, String)]
+emitKernels orig_asts (ast, filename) = let
                 originalLines = subSrcLines (getSubRec  orig_asts filename)
                 orig_ast = getOrigAST orig_asts filename 
                 kernels_code = everything (++) (mkQ [] (synthesiseKernels originalLines orig_ast (ast, filename))) ast

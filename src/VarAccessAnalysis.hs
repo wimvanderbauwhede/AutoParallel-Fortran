@@ -5,6 +5,7 @@ module VarAccessAnalysis (
         getPrexistingVars, 
         getValueAtSrcSpan, 
         getNonTempVars,
+        getArguments,
         getAccessLocationsInsideSrcSpan, 
         isFunctionCall, 
         f95IntrinsicFunctions,

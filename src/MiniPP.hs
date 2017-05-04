@@ -1,4 +1,4 @@
-module MiniPP (miniPPF, miniPP, miniPPO, miniPPD, showVarLst )
+module MiniPP (miniPPF, miniPP, miniPPO, miniPPD, miniPPP, showVarLst )
 where
 import Language.Fortran
 import LanguageFortranTools
@@ -10,9 +10,61 @@ WV: I know Language.Fortran provides a pretty-printer but getting it to work on 
 -}
 
 
+
+{- TODO!
+data ProgUnit  p = Main      p SrcSpan                      (SubName p)  (Arg p)                      (Block p) [ProgUnit p]
+                | Sub        p SrcSpan (Maybe (BaseType p)) (SubName p)  (Arg p)                      (Block p)
+                | Function   p SrcSpan (Maybe (BaseType p)) (SubName p)  (Arg p)  (Maybe (VarName p)) (Block p)
+                | Module     p SrcSpan                      (SubName p)  (Uses p) (Implicit p) (Decl p) [ProgUnit p]
+                | BlockData  p SrcSpan                      (SubName p)  (Uses p) (Implicit p) (Decl p)
+                | PSeq       p SrcSpan (ProgUnit p) (ProgUnit p)   -- sequence of programs
+                | Prog       p SrcSpan (ProgUnit p)                -- useful for {#p: #q : program ... }
+                | NullProg   p SrcSpan                             -- null
+                | IncludeProg p SrcSpan (Decl p) (Maybe (Fortran p))
+                deriving (Show, Functor, Typeable, Data, Eq)
+
+-- | Fortran subroutine names
+data SubName p  = SubName p String
+                 | NullSubName p
+                 deriving (Show, Functor, Typeable, Data, Eq)
+ 
+data VarName  p = VarName p Variable 
+                  deriving (Show, Functor, Typeable, Data, Eq, Read, Ord)
+
+data ArgName  p = ArgName p String
+                | ASeq p (ArgName p) (ArgName p)
+                | NullArg p
+                 deriving (Show, Functor, Typeable, Data, Eq)
+
+-- | The src span denotes the end of the arg list before ')'
+data Arg      p = Arg p (ArgName p) SrcSpan
+                  deriving (Show, Functor, Typeable, Data, Eq)
+
+data ArgList  p = ArgList p (Expr p)
+                  deriving (Show, Functor, Typeable, Data, Eq)
+                
+-}
+
+showSubName (SubName _ s) = s
+showSubName (NullSubName _)  = ""
+
+showArg (Arg _ argname _) = let
+        arg_str = showArgName argname
+    in
+        if arg_str == ""  then  "" else "("++arg_str++")"
+
+showArgName  (ArgName _ arg) = arg
+showArgName  (NullArg _) = ""
+showArgName  (ASeq _ (NullArg _) a2) = showArgName a2
+showArgName  (ASeq _ a1 (NullArg _)) = showArgName a1
+showArgName  (ASeq _ (NullArg _) (NullArg _)) = ""
+showArgName  (ASeq _ a1 a2) = (showArgName a1)++", "++(showArgName a2) 
+
+
+miniPPP (Main _ _ subname args block ps) = "program "++(showSubName subname)++" "++(showArg args)++"\n"++(miniPPB block) ++ (unlines (map miniPPP ps))++"\nend program "++(showSubName subname)++"\n"    -- TODO
 miniPPP progunit = show progunit 
 
-miniPPB (Block _ useblock implicit _ decl fortran) = "BOOM!" -- TODO
+miniPPB (Block _ useblock implicit _ decl fortran) = (miniPPD decl) ++"\n" ++ (miniPPF fortran) -- TODO
 
 miniPPAttr attr = case attr of
     Parameter _ -> "parameter"
@@ -46,7 +98,7 @@ miniPPD decl  = case decl of
                     BaseType _ bt attrs e1 e2 ->(intercalate ", "  ([showType bt e1 e2]++(map miniPPAttr attrs))) 
                     ArrayT   _ expr_tups bt attrs e1 e2  -> (intercalate ", "  ([showType bt e1 e2]++(map miniPPAttr attrs))) ++ "<<"++ (show expr_tups) ++ ">>" 
                 ttups_str = intercalate "," (
-                                map (\(e1,e2,mi) -> (miniPP e1)++( if (miniPP e2)=="" then "" else " = "++(miniPP e2)++"\n") ++
+                                map (\(e1,e2,mi) -> (miniPP e1)++( if (miniPP e2)=="" then "" else " = "++(miniPP e2)++" ") ++
                                     (case mi of 
                                         Nothing -> ""
                                         Just ii -> " ! " ++(show ii)
@@ -54,7 +106,7 @@ miniPPD decl  = case decl of
                                     ttups
                                         )
             in
-              ty_str ++ " :: " ++ ttups_str
+              "      "++ty_str ++ " :: " ++ ttups_str -- indent is ad hoc!
         DSeq _ d1 d2 -> (miniPPD d1)++"\n"++(miniPPD d2)
         _ ->  "! UNSUPPORTED in miniPPD! "++(show decl)
 
@@ -81,9 +133,12 @@ miniPPFT stmt tab =  case stmt of
                  Label _ _ lbl stmt1 -> lbl++tab++(miniPPFT stmt1 tab)
                  Print _ _ expr exprs -> tab++ "print *, "++(miniPP expr)++(intercalate "," (map miniPP exprs))
                  NullStmt _ _ -> "" -- "! NullStmt"
+                 Stop _ _ e1 -> tab++"stop "++(miniPP e1)
                  Continue _ _ -> tab++"continue"
                  OpenCLMap _ _ vrs  vws lvars ilvars stmt1  -> "! OpenCLMap ( "++(showVarLst vrs)++","++(  showVarLst vws)++","++( showLoopVarLst lvars)++","++( showVarLst ilvars)++") {\n"++(miniPPFT stmt1 tab)++"\n"++tab++"}" -- WV20170426
                  OpenCLReduce _ _ vrs vws lvars ilvars rvarexprs stmt1 -> "! OpenCLReduce ( "++(showVarLst vrs)++","++(  showVarLst vws)++","++( showLoopVarLst lvars)++","++( showVarLst ilvars)++","++ (showReductionVarLst rvarexprs)++") {\n"++(miniPPFT stmt1 tab) ++"\n"++tab++"}" -- WV20170426
+                 OpenCLBufferWrite _ _ (VarName _ v) -> tab++"oclWriteBuffer("++v++")" -- FIXME! Should have type info etc oclWrite3DFloatArrayBuffer(p_buf,p_sz,p) This requires a lookup in the context!
+                 OpenCLBufferRead _ _ (VarName _ v) -> tab++"oclWriteBuffer("++v++")" -- FIXME! Should have type info etc
                  Return _ _ expr -> tab++"return "++(miniPP expr)
                  _ -> "! UNSUPPORTED in miniPPF ! "++(show stmt)
 
@@ -130,10 +185,11 @@ miniPP expr = case expr of
     (Unary _ _ minus e) -> "-"++(miniPP e)
     (NullExpr _ _) -> "" -- "! NullExpr"
     (Null _ _) -> "" -- "! Null" 
-    (ESeq _ _ e1 e2) -> (miniPP e1)++"; "++(miniPP e2)
+    (ESeq _ _ e1 e2) -> (miniPP e1)++", "++(miniPP e2)
     (Bound _ _ e1 e2) -> (miniPP e1)++" , "++(miniPP e2)
     (ArrayCon _ _ es) -> "("++(intercalate "," (map miniPP es))++")"
     (Sqrt _ _ expr1) -> "sqrt("++(miniPP expr1)++")" -- WV: This is silly, should be handled either for all intrinsics or none
+    (AssgExpr _ _ name e1) -> name++" = "++(miniPP e1)
     otherwise -> "! UNSUPPORTED in miniPP ! "++(show expr)
 
 -- miniPPO binop

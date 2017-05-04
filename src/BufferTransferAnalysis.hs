@@ -1,5 +1,4 @@
 module BufferTransferAnalysis         (optimiseBufferTransfers, replaceSubroutineAppearances)
-
 where
 
 --     This module deals with optimising the use of buffer reads and writes in an attempt to minimise memory transfers. The functions
@@ -9,14 +8,15 @@ where
 --     variable is used with different varnames, there is a way to determine whether two differntly named vars from different subroutines
 --     are in fact the same variable. This is necessary for correct buffer accesses across different subroutines
 
-import Data.Generics (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
+import Data.Generics (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere, everywhere')
 import Data.Maybe                     (fromMaybe)
+import Data.List (nub, foldl')
 import Language.Fortran
 import Warning (warning)
 import MiniPP 
 
 import VarAccessAnalysis             (VarAccessAnalysis, analyseAllVarAccess, getAccessLocationsBeforeSrcSpan, getAccessLocationsInsideSrcSpan, getAccessesBetweenSrcSpans, 
-                                    getAccessesBetweenSrcSpansIgnore, getAccessLocationsAfterSrcSpan)
+                                    getAccessesBetweenSrcSpansIgnore, getAccessLocationsAfterSrcSpan, getArguments)
 import LanguageFortranTools 
 import SubroutineTable                 (SubroutineTable, SubRec(..), SubroutineArgumentTranslationMap, ArgumentTranslation, replaceKernels_foldl, subroutineTable_ast, extractAllCalls, 
                                     extractCalls)
@@ -37,11 +37,15 @@ import qualified Data.Map as DMap
 --            subroutine table along with the SrcSpans that indicate where initialisation should happen and where the OpenCL portion of the main ends.
 optimiseBufferTransfers :: SubroutineTable -> SubroutineArgumentTranslationMap -> (Program Anno,[String]) -> (SubroutineTable, Program Anno)
 optimiseBufferTransfers subTable argTranslations (mainAst,mainOrigLines) = -- error ("kernels_optimisedBetween: " ++ (show kernels_optimisedBetween))
-                                                            (newSubTable, 
-                                                                 newMainAst_withReadsWrites)
+                                                            (newSubTable, warning newMainAst_withReadsWrites (miniPPP (head newMainAst_withReadsWrites)))
         where
             flattenedAst = flattenSubroutineAppearances subTable argTranslations mainAst
             flattenedVarAccessAnalysis = analyseAllVarAccess flattenedAst
+            flattenedVarAccessAnalysis' = flattenedVarAccessAnalysis -- warning flattenedVarAccessAnalysis (show flattenedVarAccessAnalysis)
+            allArguments = nub $ foldl (++) [] $ map (getArguments . (\(_,sub_rec) -> [subAst sub_rec])) (DMap.toList subTable)
+            allWrittenArgs :: [VarName Anno]
+            allWrittenArgs = nub $ foldl (++) [] $ map ( getWrittenArgs . (\(_,sub_rec) -> subAst sub_rec)) (DMap.toList subTable)
+            -- now I need the union                
             optimisedFlattenedAst = optimseBufferTransfers_program flattenedVarAccessAnalysis flattenedAst
             -- WV: up to here, the press kernel still has nrd as an argument to be written
             -- WV: The next operation is only analysis, no transformation
@@ -51,15 +55,20 @@ optimiseBufferTransfers subTable argTranslations (mainAst,mainOrigLines) = -- er
             (kernelStartSrc, kernelEndSrc) = generateKernelCallSrcRange subTable mainAst
 
             kernelRangeSrc = (fst kernelStartSrc, snd kernelEndSrc)
-            -- WV: So I guess here is where it goes wrong
-            (kernels_withoutInitOrTearDown, initWrites, varsOnDeviceAfterOpenCL) = stripInitAndTearDown flattenedVarAccessAnalysis kernelRangeSrc kernels_optimisedBetween
+            (kernels_withoutInitOrTearDown, initWrites, varsOnDeviceAfterOpenCL) = stripInitAndTearDown flattenedVarAccessAnalysis' kernelRangeSrc kernels_optimisedBetween
+            -- At this point, initWrites does contain p2 but does not contain rhs
+            -- Any Sub arg that is a kernel write arg : S `intersection` KW
+            -- And then initWrites `union` (subargs `intersection` kernelwrites)
+            initWrites' = initWrites --  warning initWrites (show (initWrites,allArguments,allWrittenArgs))
 
             readConsiderationSrc = kernelRangeSrc
-            (bufferWritesBefore, bufferWritesAfter) = generateBufferInitPositions initWrites mainAst kernelStartSrc kernelEndSrc varAccessAnalysis
+            (bufferWritesBefore, bufferWritesAfter) = generateBufferInitPositions initWrites' mainAst kernelStartSrc kernelEndSrc varAccessAnalysis
             (bufferReadsBefore, bufferReadsAfter) = generateBufferReadPositions varsOnDeviceAfterOpenCL mainAst kernelStartSrc kernelEndSrc varAccessAnalysis
 
             newMainAst_withReads = insertBufferReadsBefore bufferReadsBefore (insertBufferReadsAfter bufferReadsAfter mainAst)
-            newMainAst_withReadsWrites = insertBufferWritesBefore bufferWritesBefore (insertBufferWritesAfter bufferWritesAfter newMainAst_withReads)
+            -- so the call to insertBufferWritesAfter eats p2 ...
+            -- warning here prints out p2
+            --newMainAst_withReadsWrites = insertBufferWritesBefore bufferWritesBefore  (insertBufferWritesAfterWV' bufferWritesAfter newMainAst_withReads)
 
             oldKernels = extractKernels flattenedAst
             kernelPairs = zip oldKernels kernels_withoutInitOrTearDown
@@ -68,6 +77,132 @@ optimiseBufferTransfers subTable argTranslations (mainAst,mainOrigLines) = -- er
 
             newSubTable = foldl (replaceKernels_foldl kernelPairs) subTable (DMap.keys subTable)
 
+            updated_fstmtlst = foldl' 
+                (\fstmtlst_ (varSrcPairs,writes,after) -> insertBufferWV writes after varSrcPairs fstmtlst_) 
+                (getFStmtLstFromMainAst mainAst) 
+                [(bufferReadsAfter,False,True),(bufferReadsBefore,False,False),(bufferWritesAfter,True,True),(bufferWritesBefore,True,False)]
+            newMainAst_withReadsWrites = updateFStmtLstInMainAst mainAst updated_fstmtlst
+                            
+
+-- WV20170405 New approach to OpenCL buffer read/write insertion
+-- And of course this will now work for bufferWritesBefore etc as well
+insertBufferWritesAfterWV' = insertBufferWV True True
+insertBufferWritesBeforeWV' = insertBufferWV True False
+insertBufferReadsAfterWV' = insertBufferWV False True
+insertBufferReadsBeforeWV' = insertBufferWV False False
+
+insertBufferWV' writes after varSrcPairs ast = let
+    openCLBufferReadOrWrite 
+        | writes = OpenCLBufferWrite
+        | otherwise = OpenCLBufferRead
+    fortranSrcPairs = map (\(var, src) -> (openCLBufferReadOrWrite nullAnno src var, src)) varSrcPairs
+    astSrcSpans = nub $ map snd varSrcPairs
+    groupedFortranSrcPairs :: [([Fortran Anno],SrcSpan)]
+    groupedFortranSrcPairs = map (\astSrcSpan -> (map fst $ filter (\(bufferWrite,srcSpan) -> srcSpan ==  astSrcSpan) fortranSrcPairs,astSrcSpan)) astSrcSpans
+    -- now each of these should be turned into an FSeq
+    fortranFSeqSrcPairs :: [(Fortran Anno, SrcSpan)]
+    fortranFSeqSrcPairs = map (\(flst,srcspan) -> (transformFortranListIntoFSeq flst, srcspan)) groupedFortranSrcPairs
+    -- now we have (FSeq, SrcSpan pairs) . We now want to find the corresponding srcspan in the ast. 
+    -- The ast is the main program and what I need is the first FSeq. Easiest way is to traverse the AST top-down and modify the FSeq that matches the SrcSpan
+    -- ast' = foldl' (\ast_ (fseq,srcspan) -> everywhere' (mkT (insertFortranAfterSrcSpanWV srcspan fseq)) ast_) ast fortranFSeqSrcPairs
+    -- ast' = (\fseq_srcspan -> everywhere (mkT (insertFortranAfterSrcSpanWV fseq_srcspan)) ast) (head  fortranFSeqSrcPairs)
+    main_progunit = head ast
+    Main _ _ _ _ main_block _ = main_progunit
+    Block _ _ _ _ _ start_fseq = main_block  
+    fstmtlst = traverseFSeq start_fseq []
+    -- These are the matching lines so what I need to do is splice in the groupedFortranSrcPairs
+    matching_lines = foldl' (++) [] $ map (\(fseq,srcspan) -> filter (\fstmt -> (sameLine srcspan (getSrcSpan fstmt))) fstmtlst) fortranFSeqSrcPairs 
+    updated_fstmtlst = foldl' (updateFStmtLst after) fstmtlst groupedFortranSrcPairs
+    -- Finally we must turn updated_fstmtlst into an FSeq and wrap it into a Program
+  in
+--        error $ show fortranFSeqSrcPairs
+        error $ unlines $ map (\fstmt -> (miniPPF fstmt)++"\t"++(showSrcSpan fstmt)) updated_fstmtlst 
+
+
+insertBufferWV writes after varSrcPairs fstmtlst = let
+    openCLBufferReadOrWrite 
+        | writes = OpenCLBufferWrite
+        | otherwise = OpenCLBufferRead
+    fortranSrcPairs = map (\(var, src) -> (openCLBufferReadOrWrite nullAnno src var, src)) varSrcPairs
+    astSrcSpans = nub $ map snd varSrcPairs
+    groupedFortranSrcPairs :: [([Fortran Anno],SrcSpan)]
+    groupedFortranSrcPairs = map (\astSrcSpan -> (map fst $ filter (\(bufferWrite,srcSpan) -> srcSpan ==  astSrcSpan) fortranSrcPairs,astSrcSpan)) astSrcSpans
+    -- now each of these should be turned into an FSeq
+    fortranFSeqSrcPairs :: [(Fortran Anno, SrcSpan)]
+    fortranFSeqSrcPairs = map (\(flst,srcspan) -> (transformFortranListIntoFSeq flst, srcspan)) groupedFortranSrcPairs
+    -- These are the matching lines so what I need to do is splice in the groupedFortranSrcPairs
+    matching_lines = foldl' (++) [] $ map (\(fseq,srcspan) -> filter (\fstmt -> (sameLine srcspan (getSrcSpan fstmt))) fstmtlst) fortranFSeqSrcPairs 
+    updated_fstmtlst = foldl' (updateFStmtLst after) fstmtlst groupedFortranSrcPairs
+    -- Finally we must turn updated_fstmtlst into an FSeq and wrap it into a Program
+  in
+        updated_fstmtlst 
+
+
+
+
+getFStmtLstFromMainAst ast = let
+        main_progunit = head ast
+        Main _ _ _ _ main_block _ = main_progunit
+        Block _ _ _ _ _ start_fseq = main_block  
+        fstmtlst = traverseFSeq start_fseq []
+    in
+        fstmtlst
+
+updateFStmtLstInMainAst ast fstmtlst = let
+        main_progunit = head ast
+        Main m1 m2 m3 m4 main_block m5 = main_progunit
+        Block b1 b2 b3 b4 b5 start_fseq = main_block  
+        new_start_fseq = transformFortranListIntoFSeq fstmtlst
+    in
+        [Main m1 m2 m3 m4 (Block b1 b2 b3 b4 b5 new_start_fseq) m5]
+
+
+updateFStmtLst after fstmtlst (bufstmtlst,srcspan) =
+    foldl' (++) [] $ map (\fstmt -> if (sameLine srcspan (getSrcSpan fstmt)) 
+            then 
+                if after
+                    then [fstmt]++bufstmtlst
+                    else bufstmtlst++[fstmt]
+            else [fstmt]) fstmtlst
+
+sameLine ((SrcLoc _ startLine1 _), (SrcLoc _ endLine1 _)) ((SrcLoc _ startLine2 _), (SrcLoc _ endLine2 _)) = startLine1 == startLine2
+        
+showSrcSpan (Assg _ srcspan _ _) = show  srcspan
+showSrcSpan (Call _ srcspan _ _) = show  srcspan
+showSrcSpan fstmt = ""
+
+getSrcSpan (Assg _ srcspan _ _) =   srcspan
+getSrcSpan (Call _ srcspan _ _) =   srcspan
+getSrcSpan fstmt = nullSrcSpan
+
+insertFortranAfterSrcSpanWV (fseq_to_add,fseq_to_add_srcspan) fseq_ast@(FSeq anno ast_srcspan f1 f2) = let
+        fseq_ast' = FSeq anno ast_srcspan (FSeq anno nullSrcSpan f1 fseq_to_add) f2
+    in
+        if ast_srcspan == fseq_to_add_srcspan then (warning fseq_ast' ("FOUND FSEQ: " ++(show ast_srcspan)++"\n") ) else (warning fseq_ast ("OTHER FSEQ: "++(show (fseq_to_add_srcspan,ast_srcspan))++"\n"))
+insertFortranAfterSrcSpanWV fseq_srcspan f_other = warning f_other "NOT FSEQ\n"
+
+-- So clearly ths 'everywhere' is not working the way I'd like it to. How about a manual traversal through FSeq? 
+-- 
+traverseFSeq fseq acc = case fseq of
+    NullStmt nullAnno nullSrcSpan -> acc
+    (FSeq anno ast_srcspan f1 f2) -> acc++(traverseFSeq f1 [])++(traverseFSeq f2 [])
+    f -> acc ++ [f]
+
+
+transformFortranListIntoFSeq :: [Fortran Anno] -> Fortran Anno
+transformFortranListIntoFSeq flst
+    | length flst == 0 = NullStmt nullAnno nullSrcSpan
+    | length flst == 1 = head flst
+    | otherwise = foldl' groupPairIntoFSeq (FSeq nullAnno nullSrcSpan fst_f (NullStmt nullAnno nullSrcSpan) ) rest_fs
+  where
+    fst_f:rest_fs = flst  
+    
+-- We can safely assume that the first arg is FSeq
+groupPairIntoFSeq fseq f_to_add = let
+        FSeq anno srcspan f_acc null_f = fseq
+    in    
+        FSeq anno srcspan (FSeq anno srcspan f_acc f_to_add) null_f
+    
 --    AIM:
 --        Produce a list of varnames and associated locations where the location is the position at which that var's buffer must be read to allow the host
 --        program to function correctly. This must consider loops.
@@ -80,19 +215,20 @@ optimiseBufferTransfers subTable argTranslations (mainAst,mainOrigLines) = -- er
 generateBufferInitPositions :: [VarName Anno] -> Program Anno -> SrcSpan -> SrcSpan -> VarAccessAnalysis -> ([(VarName Anno, SrcSpan)], [(VarName Anno, SrcSpan)])
 generateBufferInitPositions initWrites mainAst kernelStartSrc kernelEndSrc varAccessAnalysis = (bufferWritesBeforeSrc, bufferWritesAfterSrc)
         where 
-            fortranNode = (extractFirstFortran mainAst)
+            fortranNode = extractFirstFortran mainAst
             writeConsiderationEnd = findWriteConsiderationEnd (fst kernelStartSrc) fortranNode
             writeConsiderationSrc = (fst (srcSpan fortranNode), writeConsiderationEnd)
 
             varWritesInSrc = map (\var -> snd (getAccessLocationsInsideSrcSpan varAccessAnalysis var writeConsiderationSrc)) initWrites
             varWritesInSrcExcludingKernelRange = map (filter (\x -> not (srcSpanInSrcSpanRange kernelStartSrc kernelEndSrc x))) varWritesInSrc
-
             bufferWritePositions = zip initWrites (map (\srcs -> fromMaybe (nullSrcSpan) (getLatestSrcSpan srcs)) varWritesInSrcExcludingKernelRange)
             bufferWritePositionsExcludingNull = filter (\(var, src) -> src /= nullSrcSpan) bufferWritePositions
-            bufferWritePositionsKernelStart = map (\(var, src) -> if checkSrcLocBefore (fst kernelStartSrc) (fst src) then (var, kernelStartSrc) else (var, src)) bufferWritePositionsExcludingNull
+            bufferWritePositionsExcludingNull' = bufferWritePositionsExcludingNull -- warning bufferWritePositionsExcludingNull (show (bufferWritePositions, bufferWritePositionsExcludingNull))
+            -- here, p2 is still present
+            -- bufferWritePositionsKernelStart = map (\(var, src) -> if checkSrcLocBefore (fst kernelStartSrc) (fst src) then (var, kernelStartSrc) else (var, src)) bufferWritePositionsExcludingNull
 
-            bufferWritesBeforeSrc = filter (\(var, src) -> src == kernelStartSrc) bufferWritePositionsExcludingNull 
-            bufferWritesAfterSrc = filter (\(var, src) -> src /= kernelStartSrc) bufferWritePositionsExcludingNull 
+            bufferWritesBeforeSrc = filter (\(var, src) -> src == kernelStartSrc) bufferWritePositionsExcludingNull' 
+            bufferWritesAfterSrc = filter (\(var, src) -> src /= kernelStartSrc) bufferWritePositionsExcludingNull'
 
 --    A similar approach to the function above, except we are looking for locations where a variable is read rather than written to. The consideration range
 --    is after the kernel calls (including any loops that the kernel calls appear in) and any read that happens before the kernel calls in a loop mean that a
@@ -256,7 +392,8 @@ insertBufferReadsBefore varSrcPairs ast = everywhere (mkT (insertFortranBefore_b
         where 
             fortranSrcPairs = map (\(var, src) -> (OpenCLBufferRead nullAnno src var, src)) varSrcPairs
 
-insertBufferWritesAfter varSrcPairs ast = everywhere (mkT (insertFortranAfter_block fortranSrcPairs)) ast
+insertBufferWritesAfter :: [(VarName Anno, SrcSpan)] -> Fortran Anno -> Fortran Anno     
+insertBufferWritesAfter varSrcPairs ast = everywhere (mkT (insertFortranAfter_block fortranSrcPairs )) ast -- this does show p2
         where 
             fortranSrcPairs = map (\(var, src) -> (OpenCLBufferWrite nullAnno src var, src)) varSrcPairs
 
@@ -265,53 +402,76 @@ insertBufferWritesBefore varSrcPairs ast = everywhere (mkT (insertFortranBefore_
             fortranSrcPairs = map (\(var, src) -> (OpenCLBufferWrite nullAnno src var, src)) varSrcPairs
 
 insertFortranAfter_block :: [(Fortran Anno, SrcSpan)] -> Block Anno -> Block Anno
-insertFortranAfter_block fortranSrcPairs (Block anno useBlock imp src decl fortran) = Block anno useBlock imp src decl (insertFortranAfter_fortran fortranSrcPairs fortran)
+insertFortranAfter_block fortranSrcPairs (Block anno useBlock imp src decl fortran) = Block anno useBlock imp src decl (insertFortranAfter_fortran fortranSrcPairs fortran) -- (warning fortranSrcPairs ("BLOCK: "++(show fortranSrcPairs))) fortran) -- this does show p2
 
 insertFortranBefore_block :: [(Fortran Anno, SrcSpan)] -> Block Anno -> Block Anno
 insertFortranBefore_block fortranSrcPairs (Block anno useBlock imp src decl fortran) = Block anno useBlock imp src decl (insertFortranBefore_fortran fortranSrcPairs fortran)
 
 insertFortranAfter_fortran :: [(Fortran Anno, SrcSpan)] -> Fortran Anno -> Fortran Anno
-insertFortranAfter_fortran fortranSrcPairs ast = foldl (\astAccum (fort, src) -> insertAfterSrc fort src astAccum) ast fortranSrcPairs
+insertFortranAfter_fortran fortranSrcPairs ast = foldl' (\astAccum (fort, src) -> insertAfterSrc fort src astAccum) ast fortranSrcPairs -- (warning fortranSrcPairs (show fortranSrcPairs))-- HERE I've lost p2 !!! also when I reverse the list, so it is the value that causes this.
 
 insertFortranBefore_fortran :: [(Fortran Anno, SrcSpan)] -> Fortran Anno -> Fortran Anno
-insertFortranBefore_fortran fortranSrcPairs ast = foldl (\astAccum (fort, src) -> insertBeforeSrc fort src astAccum) ast fortranSrcPairs
+insertFortranBefore_fortran fortranSrcPairs ast = foldl' (\astAccum (fort, src) -> insertBeforeSrc fort src astAccum) ast fortranSrcPairs
 
 insertAfterSrc :: Fortran Anno -> SrcSpan -> Fortran Anno -> Fortran Anno
-insertAfterSrc newFortran src ast = insertFortranAfterSrc newFortran src ast
+insertAfterSrc newFortran@(OpenCLBufferWrite _ _ (VarName _ var)) src ast = 
+    if var == "p2" 
+        then insertFortranAfterSrcWV (warning newFortran  ("WARNING:" ++(show (newFortran, src)))) src ast -- So this warning is never printed. 
+        else insertFortranAfterSrc newFortran src ast
+
+insertFortranAfterSrcWV :: Fortran Anno -> SrcSpan -> Fortran Anno -> Fortran Anno
+insertFortranAfterSrcWV newFortran src targetFortran =  let
+    src' = case targetFortran of 
+        Assg _ srcspan _ _ -> srcspan
+        _ -> nullSrcSpan
+    in
+        if src == src' then
+            error $ show (newFortran,targetFortran)    
+        else
+            warning targetFortran ("LINE: "++(show targetFortran)++"\n\n")
+
+-- original code
+-- insertAfterSrc newFortran src ast = insertFortranAfterSrc newFortran src ast
 
 insertBeforeSrc :: Fortran Anno -> SrcSpan -> Fortran Anno -> Fortran Anno
 insertBeforeSrc newFortran src ast = insertFortranBeforeSrc newFortran src ast
 
+-- so I should create a dummy here and abort on p2
+
 insertFortranAfterSrc :: Fortran Anno -> SrcSpan -> Fortran Anno -> Fortran Anno
-insertFortranAfterSrc newFortran src (FSeq fseqAnno fseqSrc fortran1 fortran2)     |    correctPosition = (FSeq fseqAnno fseqSrc fortran1 (FSeq nullAnno nullSrcSpan newFortran fortran2))
-                                                                                |    otherwise = FSeq fseqAnno fseqSrc updateFortran1 updateFortran2
+insertFortranAfterSrc newFortran src (FSeq fseqAnno fseqSrc fortran1 fortran2)     
+            |    correctPosition = FSeq fseqAnno fseqSrc fortran1 (FSeq nullAnno nullSrcSpan newFortran fortran2) -- (warning newFortran ("insertFortranAfterSrc FSeq correctPosition "++(show newFortran))) fortran2)
+            |    otherwise       = FSeq fseqAnno fseqSrc updateFortran1 updateFortran2
         where
-            ((SrcLoc _ startLine _), (SrcLoc _ endLine _)) = src
-            ((SrcLoc _ f1LineStart _), (SrcLoc _ f1LineEnd _)) = srcSpan fortran1
+--            ((SrcLoc _ startLine _), (SrcLoc _ endLine _)) = src
+--            ((SrcLoc _ f1LineStart _), (SrcLoc _ f1LineEnd _)) = srcSpan fortran1
             correctPosition = src == srcSpan fortran1
-            updateFortran1 = insertFortranAfterSrc newFortran src fortran1
+            updateFortran1 = insertFortranAfterSrc newFortran src fortran1 -- (warning newFortran ("insertFortranAfterSrc FSeq NOT correctPosition 1 "++(show newFortran))) src fortran1
             updateFortran2 = if (updateFortran1 == fortran1) then insertFortranAfterSrc newFortran src fortran2 else fortran2
-insertFortranAfterSrc newFortran src codeSeg     |    correctPosition = FSeq nullAnno nullSrcSpan codeSeg newFortran
-                                                |    otherwise = gmapT (mkT (insertFortranAfterSrc newFortran src)) codeSeg
+--            updateFortran2 = if (updateFortran1 == fortran1) then insertFortranAfterSrc (warning newFortran ("insertFortranAfterSrc FSeq NOT correctPosition 2 "++(show newFortran))) src fortran2 else fortran2
+insertFortranAfterSrc newFortran src codeSeg     
+            |    correctPosition = FSeq nullAnno nullSrcSpan codeSeg newFortran -- (warning newFortran ("insertFortranAfterSrc codeSeg correctPosition "++(show newFortran))) 
+            |    otherwise = gmapT (mkT (insertFortranAfterSrc newFortran src)) codeSeg
+--            |    otherwise = gmapT (mkT (insertFortranAfterSrc (warning newFortran ("insertFortranAfterSrc codeSeg NOT correctPosition"++(show newFortran))) src)) codeSeg
         where
-            ((SrcLoc _ startLine _), _) = src
-            ((SrcLoc _ codeSegLineStart _), _) = srcSpan codeSeg
+--            ((SrcLoc _ startLine _), _) = src
+--            ((SrcLoc _ codeSegLineStart _), _) = srcSpan codeSeg
             correctPosition = src == srcSpan codeSeg
 
 insertFortranBeforeSrc :: Fortran Anno -> SrcSpan -> Fortran Anno -> Fortran Anno
 insertFortranBeforeSrc newFortran src (FSeq fseqAnno fseqSrc fortran1 fortran2)     |    correctPosition = FSeq nullAnno nullSrcSpan newFortran ((FSeq fseqAnno fseqSrc fortran1 fortran2)) -- (FSeq fseqAnno fseqSrc fortran1 (FSeq nullAnno nullSrcSpan newFortran fortran2))
                                                                                     |    otherwise = FSeq fseqAnno fseqSrc updateFortran1 updateFortran2
         where
-            ((SrcLoc _ startLine _), (SrcLoc _ endLine _)) = src
-            ((SrcLoc _ f1LineStart _), (SrcLoc _ f1LineEnd _)) = srcSpan fortran1
+--            ((SrcLoc _ startLine _), (SrcLoc _ endLine _)) = src
+--            ((SrcLoc _ f1LineStart _), (SrcLoc _ f1LineEnd _)) = srcSpan fortran1
             correctPosition = src == srcSpan fortran1
             updateFortran1 = insertFortranBeforeSrc newFortran src fortran1
             updateFortran2 = if (updateFortran1 == fortran1) then insertFortranBeforeSrc newFortran src fortran2 else fortran2
 insertFortranBeforeSrc newFortran src codeSeg     |    correctPosition = FSeq nullAnno nullSrcSpan newFortran codeSeg
                                                 |    otherwise = gmapT (mkT (insertFortranBeforeSrc newFortran src)) codeSeg
         where
-            ((SrcLoc _ startLine _), _) = src
-            ((SrcLoc _ codeSegLineStart _), _) = srcSpan codeSeg
+--            ((SrcLoc _ startLine _), _) = src
+--            ((SrcLoc _ codeSegLineStart _), _) = srcSpan codeSeg
             correctPosition = src == srcSpan codeSeg
 
 buildBufferReadFortran :: [VarName Anno] -> Fortran Anno -> Fortran Anno

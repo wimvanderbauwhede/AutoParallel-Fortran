@@ -75,9 +75,9 @@ data ArgList  p = ArgList p (Expr p)
 
 type Program p = [ProgUnit p]
 
-               -- Prog type   (type of result)   name      args  (result) body    use's  
-data ProgUnit  p = Main      p SrcSpan                      (SubName p)  (Arg p)  (Block p) [ProgUnit p]
-                | Sub        p SrcSpan (Maybe (BaseType p)) (SubName p)  (Arg p)  (Block p)
+               -- Prog type            (type of result)      name         args     (result)            body     use's  
+data ProgUnit  p = Main      p SrcSpan                      (SubName p)  (Arg p)                      (Block p) [ProgUnit p]
+                | Sub        p SrcSpan (Maybe (BaseType p)) (SubName p)  (Arg p)                      (Block p)
                 | Function   p SrcSpan (Maybe (BaseType p)) (SubName p)  (Arg p)  (Maybe (VarName p)) (Block p)
                 | Module     p SrcSpan                      (SubName p)  (Uses p) (Implicit p) (Decl p) [ProgUnit p]
                 | BlockData  p SrcSpan                      (SubName p)  (Uses p) (Implicit p) (Decl p)
@@ -102,7 +102,7 @@ data UseBlock p = UseBlock (Uses p) SrcLoc deriving (Show, Functor, Typeable, Da
 data Uses p  = Use p (String, Renames) (Uses p) p
                 | UseNil p deriving (Show, Functor, Typeable, Data, Eq)
 
-             --       use's     implicit  decls  stmts
+             --             use's        implicit              decls  stmts
 data Block    p = Block p  (UseBlock p) (Implicit p) SrcSpan (Decl p) (Fortran p)
                 deriving (Show, Functor, Typeable, Data, Eq)
 

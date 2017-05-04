@@ -42,19 +42,17 @@ import LanguageFortranTools
 import SubroutineTable                     (SubroutineTable(..),SubRec(..),ArgumentTranslation, SubroutineArgumentTranslationMap, emptyArgumentTranslation, getSubroutineArgumentTranslation, translateArguments,
                                         extractSubroutines, extractProgUnitName)
 
-
 --    This function produces a list of strings where each element is a line of the original source. This
 --    list is used heavily in this module.
-readOriginalFileLines :: [String] -> Bool -> String -> IO ([String])
-readOriginalFileLines cppDFlags fixedForm filename = do
-                content <- cpp cppDFlags fixedForm filename
+readOriginalFileLines :: [String] -> [String] -> Bool -> String -> IO ([String])
+readOriginalFileLines cppDFlags cppXFlags fixedForm filename = do
+                content <- cpp cppDFlags cppXFlags fixedForm filename
                 let contentLines = lines content
                 return contentLines
                 -- so here I have to go through these lines, and find 'use' declarations, and substitute these 
                 --let 
 --                expandedContentLines <- foldlM (++) [] $ 
 --                inlineDeclsFromUsedModules contentLines 
-
 
 defaultFilename :: [String] -> String
 defaultFilename (x:[]) = "par_" ++ x
@@ -88,9 +86,9 @@ synthesiseSuperKernelName originalFilenames = base ++ suffix
                                     '_' -> "superkernel"
                                     _ -> "_superkernel")
 
-produceCode_prog :: KernelArgsIndexMap -> SubroutineArgumentTranslationMap -> [String] -> Bool -> String -> String -> (Program Anno, String) -> IO(String)
-produceCode_prog allKernelArgsMap argTranslation cppDFlags fixedForm kernelModuleName superKernelName (prog, filename) = do
-                    originalLines <- readOriginalFileLines cppDFlags fixedForm filename
+produceCode_prog :: KernelArgsIndexMap -> SubroutineArgumentTranslationMap -> [String] -> [String] -> Bool -> String -> String -> (Program Anno, String) -> IO(String)
+produceCode_prog allKernelArgsMap argTranslation cppDFlags cppXFlags fixedForm kernelModuleName superKernelName (prog, filename) = do
+                    originalLines <- readOriginalFileLines cppDFlags cppXFlags fixedForm filename
                     let result = foldl (\accum item -> accum ++ produceCode_progUnit allKernelArgsMap emptyArgumentTranslation (prog, filename) kernelModuleName superKernelName originalLines item) "" prog
                     return result
 

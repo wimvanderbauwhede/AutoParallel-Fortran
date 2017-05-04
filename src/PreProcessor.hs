@@ -9,9 +9,9 @@ import qualified Data.Map as DMap
 
 import Warning
 
-preProcess :: Bool -> String -> (String, DMap.Map Int [String])
-preProcess False inputStr = replaceIfDefByLabel $ removeBlankLines $ andOperatorFix $ orOperatorFix $ containsStatementFix $ caseStatementFix $ inputStr
-preProcess True inputStr = replaceIfDefByLabel $ removeBlankLines $ andOperatorFix $ orOperatorFix $ containsStatementFix $ caseStatementFix $ fixedForm $ inputStr
+preProcess :: Bool -> [String] -> String -> (String, DMap.Map Int [String])
+preProcess False macros inputStr = (replaceIfDefByLabel macros) $ removeBlankLines $ andOperatorFix $ orOperatorFix $ containsStatementFix $ caseStatementFix $ inputStr
+preProcess True macros inputStr = (replaceIfDefByLabel macros) $ removeBlankLines $ andOperatorFix $ orOperatorFix $ containsStatementFix $ caseStatementFix $ fixedForm $ inputStr
 
 caseInsensitive_strReplace :: [Char] -> [Char] -> [Char] -> [Char]
 caseInsensitive_strReplace original replace str     
@@ -56,28 +56,24 @@ fixedForm  inputStr = foldl (\accum item -> accum ++ (take 72 item) ++ "\n") "" 
         where
             allLines = lines inputStr
 
-replaceIfDefByLabel :: String -> (String, DMap.Map Int [String])
-replaceIfDefByLabel inputStr = 
+replaceIfDefByLabel :: [String] -> String -> (String, DMap.Map Int [String])
+replaceIfDefByLabel macros inputStr = 
     let
         src_lines = lines inputStr
         -- state            
         -- (add_to_stash, nest_counter, stash, lines_to_stash, lines_to_output, label_counter)
         init_state = (False,0,DMap.empty,[],[],0)
-        (add_to_stash, nest_counter, stash, lines_to_stash, lines_to_output, label_counter) = foldl stashLine init_state src_lines
+        (add_to_stash, nest_counter, stash, lines_to_stash, lines_to_output, label_counter) = foldl (stashLine macros) init_state src_lines
     in   
 --        (inputStr, stash)    
         (unlines lines_to_output, stash)
 
 -- logic
-stashLine :: (Bool, Int, DMap.Map Int [String], [String], [String], Int) -> String -> (Bool, Int, DMap.Map Int [String], [String], [String], Int)
-stashLine (add_to_stash, nest_counter, stash, lines_to_stash, lines_to_output, label_counter) line =
-    let
+stashLine :: [String] -> (Bool, Int, DMap.Map Int [String], [String], [String], Int) -> String -> (Bool, Int, DMap.Map Int [String], [String], [String], Int)
+stashLine macros (add_to_stash, nest_counter, stash, lines_to_stash, lines_to_output, label_counter) line =
+    let        
         (nest_counter', add_to_stash') 
-            | nest_counter == 0  = if ( 
-                line `startsWith` "#ifndef NO_IO" ||
-                line `startsWith` "#ifdef DBG" ||
-                line `startsWith` "#ifdef TIMINGS" 
-               ) then  (1,True) else (0, False)
+            | nest_counter == 0  = if ( lineHasIfMacro line macros ) then  (1,True) else (0, False)
             | line `startsWith` "#if"  = (nest_counter+1, add_to_stash)
             | line `startsWith` "#endif" = (nest_counter-1,add_to_stash)    
             | otherwise = (nest_counter,add_to_stash)
@@ -101,5 +97,10 @@ stashLine (add_to_stash, nest_counter, stash, lines_to_stash, lines_to_output, l
     in
         (add_to_stash'', nest_counter', stash', lines_to_stash'', lines_to_output'', label_counter')
     
+lineHasIfMacro line macros = foldl (||) False $ map (lineHasIfMacroHelper line) macros 
+lineHasIfMacroHelper line macro = foldl (||) False $ map (\ifexpr -> (normLine line) `startsWith` (ifexpr++" "++macro)) ["#ifdef","#ifndef","#if"]
+
+-- remove extraneous spaces
+normLine line = unwords $ words line
 
 startsWith line str =  (take (length str) line) == str

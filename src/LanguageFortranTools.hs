@@ -30,64 +30,23 @@ nullAnno :: Anno
 nullAnno = DMap.empty
 
 --    Taken from language-fortran example. Runs preprocessor on target source and then parses the result, returning an AST.
-parseFile :: [String] -> Bool -> String -> IO ( (Program Anno, [String]) , (String, DMap.Map Int [String]))
-parseFile cppArgs fixedForm filename = do 
-    (preproc_inp, stash) <- preProcessingHelper cppArgs fixedForm filename
+parseFile :: [String] -> [String] -> Bool -> String -> IO ( (Program Anno, [String]) , (String, DMap.Map Int [String]))
+parseFile cppDArgs cppXArgs fixedForm filename = do 
+    (preproc_inp, stash) <- preProcessingHelper cppDArgs cppXArgs fixedForm filename
     let
         preproc_inp_lines = lines preproc_inp
     return ((parse  preproc_inp, preproc_inp_lines),(filename, stash))
     --return (parse  preproc_inp, preproc_inp_lines) -- ,(filename, stash))
 
-{-
-    let dFlagList = if length cppArgs > 0
-        then foldl (\accum item -> accum ++ ["-D"++item]) [] cppArgs
-        else  []
-    let dFlagStr = if length dFlagList == 0 then  "" else unwords dFlagList    
-    let cpp_cmd = "cpp -P "++dFlagStr++ " "++filename
-    putStrLn cpp_cmd
-    inp <- readCreateProcess (shell cpp_cmd) ""
-    let
-        contentLines = lines inp
-    exp_inp_lines <- inlineDeclsFromUsedModules contentLines                                
-    let 
-        inp' = unlines exp_inp_lines 
-    let
-        (preproc_inp, stash) = preProcess fixedForm inp'
-        preproc_inp_lines = lines (warning preproc_inp preproc_inp)
-    return (parse  preproc_inp, preproc_inp_lines)
-
--}
-
-cpp :: [String] -> Bool -> String -> IO String
-cpp cppArgs fixedForm filename = do 
-    (preproc_inp, _) <- preProcessingHelper cppArgs fixedForm filename
+cpp :: [String] -> [String] -> Bool -> String -> IO String
+cpp cppDArgs cppXArgs fixedForm filename = do 
+    (preproc_inp, _) <- preProcessingHelper cppDArgs cppXArgs fixedForm filename
     return preproc_inp
 
-{-
-cpp cppArgs fixedForm filename = do     
-    let dFlagList = if length cppArgs > 0
-        then foldl (\accum item -> accum ++ ["-D", item]) [] cppArgs
-        else  []
-    let dFlagStr = if length dFlagList == 0 then  "" else unwords dFlagList    
-    let cpp_cmd = "cpp -P "++dFlagStr++ " "++filename
-    putStrLn cpp_cmd
-    inp <- readCreateProcess (shell cpp_cmd) ""
-    -- inp <- readProcess "cpp" ["-P",dFlagStr,filename] ""
-    inp <- readCreateProcess (shell cpp_cmd) ""
-    let
-        contentLines = lines inp
-    exp_inp_lines <- inlineDeclsFromUsedModules contentLines                                
-    let 
-        inp' = unlines exp_inp_lines 
-    let
-        (preproc_inp, stash) = preProcess fixedForm inp'
-    return preproc_inp
--}    
-
-preProcessingHelper :: [String] -> Bool -> String -> IO (String, DMap.Map Int [String])
-preProcessingHelper cppArgs fixedForm filename = do 
-    let dFlagList = if length cppArgs > 0
-        then foldl (\accum item -> accum ++ ["-D"++item]) [] cppArgs
+preProcessingHelper :: [String] -> [String] -> Bool -> String -> IO (String, DMap.Map Int [String])
+preProcessingHelper cppDArgs cppXArgs fixedForm filename = do 
+    let dFlagList = if length cppDArgs > 0
+        then foldl (\accum item -> accum ++ ["-D"++item]) [] cppDArgs
         else  []
     let dFlagStr = if length dFlagList == 0 then  "" else unwords dFlagList    
 --    let cpp_cmd = "cpp -P "++dFlagStr++ " "++filename
@@ -100,7 +59,7 @@ preProcessingHelper cppArgs fixedForm filename = do
     let 
         inp' = unlines exp_inp_lines 
     let
-        (preproc_inp, stash) = preProcess fixedForm inp'
+        (preproc_inp, stash) = preProcess fixedForm cppXArgs inp'
     writeFile ("./tmp.f95") preproc_inp   
     let cpp_cmd = "cpp -P "++dFlagStr++ " ./tmp.f95"
     putStrLn cpp_cmd
@@ -229,6 +188,24 @@ extractKernels' codeSeg = case codeSeg of
                             OpenCLMap _ _ _ _ _ _ _ -> [codeSeg] -- WV20170426
                             OpenCLReduce _ _ _ _ _ _ _ _ -> [codeSeg] -- WV20170426
                             _ -> []
+
+
+getWrittenArgs  ast = everything (++) (mkQ [] (getWrittenArgs')) ast
+
+getWrittenArgs' codeSeg = case codeSeg of
+                            OpenCLMap _ _ _ vws _ _ _ -> vws 
+                            OpenCLReduce _ _ _ vws _ _ _ _ -> vws
+                            _ -> []
+
+
+
+getReadArgs  ast = everything (++) (mkQ [] (getReadArgs')) ast
+
+getReadArgs' codeSeg = case codeSeg of
+                            OpenCLMap _ _ vrs vws _ _ _ -> vrs
+                            OpenCLReduce _ _ vrs vws _ _ _ _ -> vrs
+                            _ -> []
+
 
 extractBufferWrites ast = everything (++) (mkQ [] (extractBufferWrites')) ast
 
@@ -687,6 +664,9 @@ listSubtractWithExemption exempt a b = filter (\x -> (elem x exempt) || (notElem
 
 listIntersection :: Eq a => [a] -> [a] -> [a]
 listIntersection a b = filter (\x -> elem x b) a
+
+listUnion :: Eq a => [a] -> [a] -> [a]
+listUnion a b = nub (a++b)
 
 combineMaps :: Ord k => DMap.Map k [a] -> DMap.Map k [a] -> DMap.Map k [a]
 combineMaps map1 map2 = resultantAnalysis
