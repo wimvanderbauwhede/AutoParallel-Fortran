@@ -666,7 +666,7 @@ listIntersection :: Eq a => [a] -> [a] -> [a]
 listIntersection a b = filter (\x -> elem x b) a
 
 listUnion :: Eq a => [a] -> [a] -> [a]
-listUnion a b = nub (a++b)
+listUnion a b = nub (a++b) 
 
 combineMaps :: Ord k => DMap.Map k [a] -> DMap.Map k [a] -> DMap.Map k [a]
 combineMaps map1 map2 = resultantAnalysis

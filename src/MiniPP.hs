@@ -1,4 +1,4 @@
-module MiniPP (miniPPF, miniPP, miniPPO, miniPPD, miniPPP, showVarLst )
+module MiniPP (miniPPF, miniPP, miniPPO, miniPPD, miniPPP, showVarLst, showSubName )
 where
 import Language.Fortran
 import LanguageFortranTools
@@ -55,13 +55,13 @@ showArg (Arg _ argname _) = let
 
 showArgName  (ArgName _ arg) = arg
 showArgName  (NullArg _) = ""
+showArgName  (ASeq _ (NullArg _) (NullArg _)) = ""
 showArgName  (ASeq _ (NullArg _) a2) = showArgName a2
 showArgName  (ASeq _ a1 (NullArg _)) = showArgName a1
-showArgName  (ASeq _ (NullArg _) (NullArg _)) = ""
 showArgName  (ASeq _ a1 a2) = (showArgName a1)++", "++(showArgName a2) 
 
 
-miniPPP (Main _ _ subname args block ps) = "program "++(showSubName subname)++" "++(showArg args)++"\n"++(miniPPB block) ++ (unlines (map miniPPP ps))++"\nend program "++(showSubName subname)++"\n"    -- TODO
+miniPPP (Main _ _ subname args block ps) = "! Generated code\n"++"program "++(showSubName subname)++" "++(showArg args)++"\n"++(miniPPB block) ++ (unlines (map miniPPP ps))++"\nend program "++(showSubName subname)++"\n"    -- TODO
 miniPPP progunit = show progunit 
 
 miniPPB (Block _ useblock implicit _ decl fortran) = (miniPPD decl) ++"\n" ++ (miniPPF fortran) -- TODO
@@ -90,6 +90,7 @@ showType bt e1 e2 = let
     in
         ty_str++kind_str++size_str
 
+miniPPD :: Decl Anno -> String 
 miniPPD decl  = case decl of
          -- Decl _ _ [(Expr p, Expr p, Maybe Int)] (Type p)
         Decl _ _ ttups ty -> 

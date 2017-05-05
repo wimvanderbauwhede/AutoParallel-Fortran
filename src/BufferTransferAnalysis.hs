@@ -37,7 +37,7 @@ import qualified Data.Map as DMap
 --            subroutine table along with the SrcSpans that indicate where initialisation should happen and where the OpenCL portion of the main ends.
 optimiseBufferTransfers :: SubroutineTable -> SubroutineArgumentTranslationMap -> (Program Anno,[String]) -> (SubroutineTable, Program Anno)
 optimiseBufferTransfers subTable argTranslations (mainAst,mainOrigLines) = -- error ("kernels_optimisedBetween: " ++ (show kernels_optimisedBetween))
-                                                            (newSubTable, warning newMainAst_withReadsWrites (miniPPP (head newMainAst_withReadsWrites)))
+                                                            (newSubTable, newMainAst_withReadsWrites) -- warning newMainAst_withReadsWrites (miniPPP (head newMainAst_withReadsWrites)))
         where
             flattenedAst = flattenSubroutineAppearances subTable argTranslations mainAst
             flattenedVarAccessAnalysis = analyseAllVarAccess flattenedAst
@@ -58,8 +58,9 @@ optimiseBufferTransfers subTable argTranslations (mainAst,mainOrigLines) = -- er
             (kernels_withoutInitOrTearDown, initWrites, varsOnDeviceAfterOpenCL) = stripInitAndTearDown flattenedVarAccessAnalysis' kernelRangeSrc kernels_optimisedBetween
             -- At this point, initWrites does contain p2 but does not contain rhs
             -- Any Sub arg that is a kernel write arg : S `intersection` KW
-            -- And then initWrites `union` (subargs `intersection` kernelwrites)
-            initWrites' = initWrites --  warning initWrites (show (initWrites,allArguments,allWrittenArgs))
+            -- And then 
+            initWrites' = initWrites `listUnion` (allArguments `listIntersection` allWrittenArgs)
+            -- initWrites' = initWrites --  warning initWrites (show (initWrites,allArguments,allWrittenArgs))
 
             readConsiderationSrc = kernelRangeSrc
             (bufferWritesBefore, bufferWritesAfter) = generateBufferInitPositions initWrites' mainAst kernelStartSrc kernelEndSrc varAccessAnalysis
