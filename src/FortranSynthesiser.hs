@@ -917,187 +917,220 @@ getMissingArgDeclStrs missingArgs_strs originalLines tabs =
 --    -    End subroutine. 
 synthesiseOpenCLReduce :: String ->  [String] -> ProgUnit Anno ->  (Program Anno, String)-> Fortran Anno -> String
 synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce anno src r w l il rv fortran)  = -- WV20170426
-                                                                            inTabs ++ "subroutine " ++ kernelName
-                                                                            ++ "("                 
-                                                                            ++ allArgs_ptrAdaptionStr
-                                                                            ++ ")\n"
-                                                                            ++ usesString
-                                                                            ++ "\n"
-                                                                            -- ++ allArgsStr
-                                                                            -- ++ origArgsStr
-                                                                            ++ paramDeclStrs
-                                                                            ++ missingArgsStr
-                                                                            ++ missingArgDeclsStr
-                                                                            ++ tabs ++ localVarsStr
-                                                                            ++ "\n" ++ localDeclStrs ++ "\n"                                                                            
-                                                                            ++ tabs ++ "! " ++ compilerName ++ ": Synthesised loop variable decls\n"
-                                                                            ++ range_rel_decls_str
-                                                                            ++ "\n"
-                                                                            ++ tabs ++ chunk_sizeDeclaration
-                                                                            ++ tabs ++ localIdDeclaration
-                                                                            ++ tabs ++ localIdFortranDeclaration
-                                                                            ++ tabs ++ groupIdDeclaration
-                                                                            ++ tabs ++ groupIdFortranDeclaration
-                                                                            ++ tabs ++ globalIdDeclaration 
-                                                                            ++ tabs ++ reductionIteratorDeclaration
-                                                                            ++ tabs ++ localChunkSizeDeclaration
-                                                                            ++ tabs ++ startPositionDeclaration
-                                                                            ++ "\n"
-                                                                            ++ readDeclStr
-                                                                            ++ writtenDeclStr
-                                                                            ++ readWriteDeclStr
-                                                                            ++ "\n"
-                                                                            ++ "#if NTH > 1\n"
-                                                                            ++ tabs ++ "! Arrays prefixed with \'local_\' should be declared using the \'__local\' modifier in C kernel version\n"
-                                                                            ++ workGroup_reductionArraysDeclStr
-                                                                            ++ "#endif\n"
-                                                                            ++ local_reductionVarsDeclatationStr
-                                                                            ++ "\n"
-                                                                            ++ tabs ++ groupIdInitialisation
-                                                                            ++ tabs ++ globalIdInitialisation
-                                                                            ++ "#if NTH > 1\n"
-                                                                            ++ tabs ++ localIdInitialisation
-                                                                            ++ "\n" ++ tabs ++ "! local_id_fortran and group_id_fortran are used to reconcile the fact that fortran arrays are referenced from 1"
-                                                                            ++ "\n" ++ tabs ++ "! not 0 like other OpenCL supporting languages\n"
-                                                                            ++ tabs ++ localIdFortranInitialisation
-                                                                            ++ "#endif\n"
-                                                                            ++ tabs ++ groupIdFortranInitialisation
-                                                                            ++ "#if NTH > 1\n"
-                                                                            ++ tabs ++ localChunkSize_GPU_str
-                                                                            ++ "#else\n"
-                                                                            ++ tabs ++ localChunkSize_CPU_str
-                                                                            ++ "#endif\n"
-                                                                            ++ tabs ++ startPosition_str
-                                                                            ++ local_reductionVarsInitStr
-                                                                            ++ "\n"
-                                                                            ++ (mkQ "" (produceCode_fortran programInfo (tabs) originalLines) workItem_loop)
-                                                                            ++ "\n"
-                                                                            ++ "#if NTH > 1\n"
-                                                                            ++ workGroup_reductionArraysInitStr
-                                                                            ++ "\n"
-                                                                            ++ tabs ++ localMemBarrier
-                                                                            ++ "\n"
-                                                                            ++ local_reductionVarsInitStr
-                                                                            ++ (mkQ "" (produceCode_fortran programInfo (tabs) originalLines) workGroup_loop)
-                                                                            ++ "#endif\n"
-                                                                            ++ global_reductionArraysAssignmentStr
-                                                                            ++ "\n"
-                                                                            ++ inTabs ++ "end subroutine " ++ kernelName
-                                                                            ++"\n\n\n"
-                                            where
-                                                orig_decls_stmts = (\(Block _ _ _ _ decls stmts) -> (decls,stmts)) (( \(Sub _ _ _ _ _ b) -> b ) orig_ast)
-                                                prog = fst programInfo
+                                       inTabs ++ "subroutine " ++ kernelName
+                                       ++ "("                 
+                                       ++ allArgs_ptrAdaptionStr
+                                       ++ ")\n"
+                                       ++ usesString
+                                       ++ "\n"
+                                       -- ++ allArgsStr
+                                       -- ++ origArgsStr
+                                       ++ paramDeclStrs
+                                       ++ missingArgsStr
+                                       ++ missingArgDeclsStr
+                                       ++ tabs ++ localVarsStr
+                                       ++ "\n" ++ localDeclStrs ++ "\n"                                                                            
+                                       ++ tabs ++ "! " ++ compilerName ++ ": Synthesised loop variable decls\n"
+                                       ++ range_rel_decls_str
+                                       ++ "\n"
+                                       ++ tabs ++ chunk_sizeDeclaration
+                                       ++ tabs ++ localIdDeclaration
+                                       ++ tabs ++ localIdFortranDeclaration
+                                       ++ tabs ++ groupIdDeclaration
+                                       ++ tabs ++ groupIdFortranDeclaration
+                                       ++ tabs ++ globalIdDeclaration 
+                                       ++ tabs ++ reductionIteratorDeclaration
+                                       ++ tabs ++ idxDeclaration
+                                       ++ tabs ++ ndrangeDeclaration
+                                       ++ tabs ++ ndrange_padded_Declaration
+                                       ++ tabs ++ nthreads_Declaration
+                                       ++ tabs ++ localChunkSizeDeclaration
+                                       ++ tabs ++ startPositionDeclaration
+                                       ++ "\n"
+                                       ++ readDeclStr
+                                       ++ writtenDeclStr
+                                       ++ readWriteDeclStr
+                                       ++ "\n"
+                                       ++ "#if NTH > 1\n"
+                                       ++ tabs ++ "! Arrays prefixed with \'local_\' should be declared using the \'__local\' modifier in C kernel version\n"
+                                       ++ workGroup_reductionArraysDeclStr
+                                       ++ "#endif\n"
+                                       ++ local_reductionVarsDeclatationStr
+                                       ++ "\n"
+                                       ++ tabs ++ groupIdInitialisation
+                                       ++ tabs ++ globalIdInitialisation
+                                       ++ "#if NTH > 1\n"
+                                       ++ tabs ++ localIdInitialisation
+                                       ++ "\n" ++ tabs ++ "! local_id_fortran and group_id_fortran are used to reconcile the fact that fortran arrays are referenced from 1"
+                                       ++ "\n" ++ tabs ++ "! not 0 like other OpenCL supporting languages\n"
+                                       ++ tabs ++ localIdFortranInitialisation
+                                       ++ "#endif\n"
+                                       ++ tabs ++ groupIdFortranInitialisation
+                                       ++ tabs ++ "nthreads = NUNITS*NTH\n"
+                                       ++ tabs ++ "ndrange = "++localChunkSize_str ++"\n"
+                                       ++ tabs ++ "ndrange_padded = ndrange\n"
+                                       ++ tabs ++ "\n"
+                                       ++ tabs ++ "if (mod(ndrange_padded, (NUNITS*NTH) ) > 0) then\n" 
+                                       ++ tabs ++ "    ndrange_padded = ( (ndrange_padded/ (NUNITS*NTH) ) +1)* (NUNITS*NTH)\n"
+                                       ++ tabs ++ "end if\n"      
+                                       ++ tabs ++ "chunk_size = ndrange_padded / NUNITS\n"
 
-                                                kernelName = generateKernelName "reduce" src (map (\(v, e) -> v) rv)
-                                                tabs = inTabs ++ tabInc
 
-                                                extractedUses = everything (++) (mkQ [] getUses) prog
-                                                usesString = foldl (\accum item -> accum ++ synthesisUses tabs item) "" extractedUses 
+                                       ++ "#if NTH > 1\n"
+                                       ++ tabs ++ "local_chunk_size = chunk_size / NTH\n" -- localChunkSize_GPU_str
+                                       ++ "#else\n"
+                                       ++ tabs ++ "local_chunk_size = chunk_size\n" -- localChunkSize_CPU_str
+                                       ++ "#endif\n"
+                                       ++ tabs ++ startPosition_str
+                                       ++ local_reductionVarsInitStr
+                                       ++ "\n"
+                                       ++ (mkQ "" (produceCode_fortran programInfo tabs originalLines) workItem_guarded_loop)
+                                       ++ "\n"
+                                       ++ "#if NTH > 1\n"
+                                       ++ workGroup_reductionArraysInitStr
+                                       ++ "\n"
+                                       ++ tabs ++ localMemBarrier
+                                       ++ "\n"
+                                       ++ local_reductionVarsInitStr
+                                       ++ (mkQ "" (produceCode_fortran programInfo (tabs) originalLines) workGroup_loop)
+                                       ++ "#endif\n"
+                                       ++ global_reductionArraysAssignmentStr
+                                       ++ "\n"
+                                       ++ inTabs ++ "end subroutine " ++ kernelName
+                                       ++"\n\n\n"
+       where
+           orig_decls_stmts = (\(Block _ _ _ _ decls stmts) -> (decls,stmts)) (( \(Sub _ _ _ _ _ b) -> b ) orig_ast)
+           prog = fst programInfo
 
-                                                reductionVarNames = map (\(varname, expr) -> varname) rv
-                                                -- readVarNames = listSubtract (listSubtract r w) reductionVarNames
-                                                -- writtenVarNames = listSubtract (listSubtract w r) reductionVarNames
-                                                -- readWriteVarNames = listSubtract (listIntersection w r) reductionVarNames
+           kernelName = generateKernelName "reduce" src (map (\(v, e) -> v) rv)
+           tabs = inTabs ++ tabInc
 
-                                                localIdVar = generateVar (VarName nullAnno "local_id")
-                                                localIdFortranVar = generateVar (VarName nullAnno "local_id_fortran")
-                                                groupIdVar = generateVar (VarName nullAnno "group_id")
-                                                groupIdFortranVar = generateVar (VarName nullAnno "group_id_fortran")
-                                                globalIdVar = generateVar (VarName nullAnno "global_id")
+           extractedUses = everything (++) (mkQ [] getUses) prog
+           usesString = foldl (\accum item -> accum ++ synthesisUses tabs item) "" extractedUses 
 
-                                                localIdDeclaration = "integer :: " ++ outputExprFormatting localIdVar ++ "\n"
-                                                localIdFortranDeclaration = "integer :: " ++ outputExprFormatting localIdFortranVar ++ "\n"
-                                                groupIdDeclaration = "integer :: " ++ outputExprFormatting groupIdVar ++ "\n"
-                                                groupIdFortranDeclaration = "integer :: " ++ outputExprFormatting groupIdFortranVar ++ "\n"
-                                                globalIdDeclaration = "integer :: " ++ outputExprFormatting globalIdVar ++ "\n"
-                                                reductionIteratorDeclaration = "integer :: " ++ varNameStr reductionIterator ++ "\n"
-                                                localChunkSizeDeclaration = "integer :: " ++ outputExprFormatting localChunkSize ++ "\n"
-                                                startPositionDeclaration = "integer :: " ++ outputExprFormatting startPosition ++ "\n"
-                                                chunk_sizeDeclaration = "integer :: " ++ outputExprFormatting chunk_size ++ "\n"
+           reductionVarNames = map (\(varname, expr) -> varname) rv
+           -- readVarNames = listSubtract (listSubtract r w) reductionVarNames
+           -- writtenVarNames = listSubtract (listSubtract w r) reductionVarNames
+           -- readWriteVarNames = listSubtract (listIntersection w r) reductionVarNames
 
-                                                localIdInitialisation = "call " ++ outputExprFormatting (getLocalId localIdVar) ++ "\n"
-                                                localIdFortranInitialisation = synthesiseAssg programInfo inTabs originalLines (generateAssgCode localIdFortranVar (generateAdditionExpr localIdVar (generateIntConstant 1)))
-                                                groupIdInitialisation = "call " ++ outputExprFormatting (getGroupID groupIdVar) ++ "\n"
-                                                groupIdFortranInitialisation = synthesiseAssg programInfo inTabs originalLines (generateAssgCode groupIdFortranVar (generateAdditionExpr groupIdVar (generateIntConstant 1)))
-                                                globalIdInitialisation = "call " ++ outputExprFormatting (getGlobalID globalIdVar) ++ "\n"
-                                                groupSizeInitialisation_calculation = generateGlobalWorkItemsExpr l
+           localIdVar = generateVar (VarName nullAnno "local_id")
+           localIdFortranVar = generateVar (VarName nullAnno "local_id_fortran")
+           groupIdVar = generateVar (VarName nullAnno "group_id")
+           groupIdFortranVar = generateVar (VarName nullAnno "group_id_fortran")
+           globalIdVar = generateVar (VarName nullAnno "global_id")
 
-                                                allArgs = extractKernelArguments (OpenCLReduce anno src r w l il rv fortran) -- WV: this is incorrect, these are only *some* args -- WV20170426
-                                                -- FIXME: so here I am adding the missing ones. Instead I should figure out what's wrong with the r/w arguments
-                                                allArgs_strs = map varNameStr allArgs
-                                                allKernelVars = extractAllVarNames fortran
-                                                -- all args from the original subroutine used in the loop body
-                                                (loopkernel_localvars_strs, loopkernel_args_strs) = getArgsAndLocalVarsForLoopBody fortran prog
-                                                allArgsStr = tabs ++ "ALL ARGS: "++  ( intercalate "," allArgs_strs ) ++"\n"
-                                                origArgsStr = tabs ++ "ORIG ARGS USED IN LOOP BODY: "++ ( intercalate "," loopkernel_args_strs)++"\n"
-                                                missingArgs_strs = filter (\arg -> not (arg `elem` allArgs_strs)) loopkernel_args_strs
-                                                missingArgs = map (\arg -> (VarName nullAnno arg)) missingArgs_strs
-                                                (localVarsStr,localDeclStrs,paramDeclStrs) = getLocalDeclStrs (allArgs++missingArgs++reductionVarNames) allKernelVars orig_decls_stmts originalLines tabs kernelName
-                                                (missingArgsStr,missingArgDeclsStr) = getMissingArgDeclStrs missingArgs_strs originalLines tabs
-                                                -- WV: declarations for _range and _rel
-                                                range_rel_decls_str = generateRangeRelDecls l tabs --  we can do this because they *must* be integers                                                
+           localIdDeclaration = "integer :: " ++ outputExprFormatting localIdVar ++ "\n"
+           localIdFortranDeclaration = "integer :: " ++ outputExprFormatting localIdFortranVar ++ "\n"
+           groupIdDeclaration = "integer :: " ++ outputExprFormatting groupIdVar ++ "\n"
+           groupIdFortranDeclaration = "integer :: " ++ outputExprFormatting groupIdFortranVar ++ "\n"
+           globalIdDeclaration = "integer :: " ++ outputExprFormatting globalIdVar ++ "\n"
+           reductionIteratorDeclaration = "integer :: " ++ varNameStr reductionIterator ++ "\n"
+           localChunkSizeDeclaration = "integer :: " ++ outputExprFormatting localChunkSize ++ "\n"
+           startPositionDeclaration = "integer :: " ++ outputExprFormatting startPosition ++ "\n"
+           chunk_sizeDeclaration = "integer :: " ++ outputExprFormatting chunk_size ++ "\n"
+           idxDeclaration  = emitDeclStr "integer" "idx"
+           ndrangeDeclaration = emitDeclStr "integer" "ndrange"
+           ndrange_padded_Declaration = emitDeclStr "integer" "ndrange_padded"
+           nthreads_Declaration = emitDeclStr "integer" "nthreads"
+           localIdInitialisation = "call " ++ outputExprFormatting (getLocalId localIdVar) ++ "\n"
+           localIdFortranInitialisation = synthesiseAssg programInfo inTabs originalLines (generateAssgCode localIdFortranVar (generateAdditionExpr localIdVar (generateIntConstant 1)))
+           groupIdInitialisation = "call " ++ outputExprFormatting (getGroupID groupIdVar) ++ "\n"
+           groupIdFortranInitialisation = synthesiseAssg programInfo inTabs originalLines (generateAssgCode groupIdFortranVar (generateAdditionExpr groupIdVar (generateIntConstant 1)))
+           globalIdInitialisation = "call " ++ outputExprFormatting (getGlobalID globalIdVar) ++ "\n"
+           groupSizeInitialisation_calculation = generateGlobalWorkItemsExpr l
 
-                                                (readDecls', writtenDecls', readWriteDecls', ptrAssignments, allArgs_ptrAdaption') = 
-                                                    adaptForReadScalarDecls (allArgs++missingArgs) (generateKernelDeclarations prog (OpenCLReduce anno src r w l il rv fortran)) -- WV20170426
-                                                -- WV: Remove the loop variables from the arguments
-                                                loopVars = map (\(v,_,_,_) -> v) l
-                                                allArgs_ptrAdaption = listSubtract allArgs_ptrAdaption' loopVars
-                                                readDecls = filter (\elt -> not ((extractAssigneeFromDecl elt) `elem`  loopVars ) ) readDecls'
-                                                writtenDecls = filter (\elt -> not ((extractAssigneeFromDecl elt) `elem`  loopVars ) ) writtenDecls'
-                                                readWriteDecls = filter (\elt -> not ((extractAssigneeFromDecl elt) `elem`  loopVars ) ) readWriteDecls'
-                                                allArgs_ptrAdaptionStr = case allArgs_ptrAdaption of
-                                                            [] -> ""
-                                                            args -> foldl (\accum item -> accum ++ "," ++ varNameStr item) (varNameStr (head args)) (tail args)
+           allArgs = extractKernelArguments (OpenCLReduce anno src r w l il rv fortran) -- WV: this is incorrect, these are only *some* args -- WV20170426
+           -- FIXME: so here I am adding the missing ones. Instead I should figure out what's wrong with the r/w arguments
+           allArgs_strs = map varNameStr allArgs
+           allKernelVars = extractAllVarNames fortran
+           -- all args from the original subroutine used in the loop body
+           (loopkernel_localvars_strs, loopkernel_args_strs) = getArgsAndLocalVarsForLoopBody fortran prog
+           allArgsStr = tabs ++ "ALL ARGS: "++  ( intercalate "," allArgs_strs ) ++"\n"
+           origArgsStr = tabs ++ "ORIG ARGS USED IN LOOP BODY: "++ ( intercalate "," loopkernel_args_strs)++"\n"
+           missingArgs_strs = filter (\arg -> not (arg `elem` allArgs_strs)) loopkernel_args_strs
+           missingArgs = map (\arg -> (VarName nullAnno arg)) missingArgs_strs
+           (localVarsStr,localDeclStrs,paramDeclStrs) = getLocalDeclStrs (allArgs++missingArgs++reductionVarNames) allKernelVars orig_decls_stmts originalLines tabs kernelName
+           (missingArgsStr,missingArgDeclsStr) = getMissingArgDeclStrs missingArgs_strs originalLines tabs
+           -- WV: declarations for _range and _rel
+           range_rel_decls_str = generateRangeRelDecls l tabs --  we can do this because they *must* be integers                                                
 
-                                                readDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" readDecls
-                                                writtenDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" writtenDecls
-                                                readWriteDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" readWriteDecls
-                                                
-                                                local_reductionVars = map (generateLocalReductionVar) reductionVarNames
-                                                local_reductionVarsInitStr = foldl (\accum (var, expr) -> accum ++ tabs ++ "local_" ++ varNameStr var ++ " = " ++ outputExprFormatting expr ++ "\n") "" rv
-                                                local_reductionVarsDeclatation = map (\(red, local) -> stripDeclAttrs $ adaptOriginalDeclaration_varname red local prog) (zip reductionVarNames local_reductionVars)
-                                                local_reductionVarsDeclatationStr = synthesiseDecls tabs local_reductionVarsDeclatation
+           (readDecls', writtenDecls', readWriteDecls', ptrAssignments, allArgs_ptrAdaption') = 
+               adaptForReadScalarDecls (allArgs++missingArgs) (generateKernelDeclarations prog (OpenCLReduce anno src r w l il rv fortran)) -- WV20170426
+           -- WV: Remove the loop variables from the arguments
+           loopVars = map (\(v,_,_,_) -> v) l
+           allArgs_ptrAdaption = listSubtract allArgs_ptrAdaption' loopVars
+           readDecls = filter (\elt -> not ((extractAssigneeFromDecl elt) `elem`  loopVars ) ) readDecls'
+           writtenDecls = filter (\elt -> not ((extractAssigneeFromDecl elt) `elem`  loopVars ) ) writtenDecls'
+           readWriteDecls = filter (\elt -> not ((extractAssigneeFromDecl elt) `elem`  loopVars ) ) readWriteDecls'
+           allArgs_ptrAdaptionStr = case allArgs_ptrAdaption of
+                       [] -> ""
+                       args -> foldl (\accum item -> accum ++ "," ++ varNameStr item) (varNameStr (head args)) (tail args)
 
-                                                localChunkSize_GPU_assg = generateAssgCode 
-                                                                            localChunkSize 
-                                                                            (generateDivisionExpr
-                                                                                (generateDivisionExpr 
-                                                                                    (generateGlobalWorkItemsExpr l)
-                                                                                    nthVar)
-                                                                                nunitsVar)
-                                                -- for CPU, NTH==1
-                                                localChunkSize_CPU_assg = generateAssgCode 
-                                                                            localChunkSize 
-                                                                            (generateDivisionExpr
-                                                                                    (generateGlobalWorkItemsExpr l)
-                                                                                nunitsVar)
-                                                localChunkSize_GPU_str = synthesiseAssg programInfo inTabs originalLines localChunkSize_GPU_assg
-                                                localChunkSize_CPU_str = synthesiseAssg programInfo inTabs originalLines localChunkSize_CPU_assg
+           readDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" readDecls
+           writtenDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" writtenDecls
+           readWriteDeclStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" readWriteDecls
+           
+           local_reductionVars = map (generateLocalReductionVar) reductionVarNames
+           local_reductionVarsInitStr = foldl (\accum (var, expr) -> accum ++ tabs ++ "local_" ++ varNameStr var ++ " = " ++ outputExprFormatting expr ++ "\n") "" rv
+           local_reductionVarsDeclatation = map (\(red, local) -> stripDeclAttrs $ adaptOriginalDeclaration_varname red local prog) (zip reductionVarNames local_reductionVars)
+           local_reductionVarsDeclatationStr = synthesiseDecls tabs local_reductionVarsDeclatation
 
-                                                startPosition_str = (outputExprFormatting startPosition) ++ " = " ++ (outputExprFormatting localChunkSize) ++
-                                                    " * " ++ (outputExprFormatting globalIdVar) ++ "\n"
+           localChunkSize_GPU_assg = generateAssgCode 
+                                       localChunkSize 
+                                       (generateDivisionExpr
+                                           (generateDivisionExpr 
+                                               (generateGlobalWorkItemsExpr l)
+                                               nthVar)
+                                           nunitsVar)
+           -- for CPU, NTH==1
+           localChunkSize_CPU_assg = generateAssgCode 
+                                       localChunkSize 
+                                       (generateDivisionExpr
+                                               (generateGlobalWorkItemsExpr l)
+                                           nunitsVar)
+           localChunkSize_GPU_str = synthesiseAssg programInfo inTabs originalLines localChunkSize_GPU_assg
+           localChunkSize_CPU_str = synthesiseAssg programInfo inTabs originalLines localChunkSize_CPU_assg
 
-                                                reductionIterator = generateReductionIterator
-                                                
-                                                workItem_loopEnd = generateSubtractionExpr (generateAdditionExpr startPosition localChunkSize) (generateIntConstant 1)
-                                                workItem_loopCode = appendFortran_recursive workItem_reductionCode workItem_loopInitialiserCode 
-                                                workItem_loop = generateLoop reductionIterator startPosition workItem_loopEnd workItem_loopCode
-                                                workItem_reductionCode = applyGeneratedSrcSpans (replaceAllOccurences_varnamePairs fortran reductionVarNames local_reductionVars)
+           startPosition_str = (outputExprFormatting startPosition) ++ " = " ++ (outputExprFormatting localChunkSize) ++
+               " * " ++ (outputExprFormatting globalIdVar) ++ "\n"
+           localChunkSize_str = outputExprFormatting localChunkSize
 
-                                                workItem_loopInitialisers = generateLoopInitialisers l (generateVar reductionIterator) Nothing
-                                                workItem_loopInitialiserCode = case workItem_loopInitialisers of
-                                                                                [] -> error "synthesiseOpenCLReduce: workItem_loopInitialiserCode - empty list"
-                                                                                _ -> foldl1 (\accum item -> appendFortran_recursive item accum) workItem_loopInitialisers
+           reductionIterator = generateReductionIterator
+           r_iter = generateVar reductionIterator
+           idx_var = VarName nullAnno "idx"
+           idx = generateVar idx_var
+           local_id = generateVar (VarName nullAnno "local_id")
+           -- (r_iter<ndrange)
+           ndrange = generateVar (VarName nullAnno "ndrange")
+           guard_cond = Bin nullAnno nullSrcSpan  (RelLT nullAnno) r_iter ndrange
+           loopPaddingGuard = generateIfNoElse guard_cond workItem_loopCode
+           r_iter_assignment = Assg nullAnno nullSrcSpan r_iter r_iter_assignment_rhs
+           -- r_iter = start_position + local_id+NTH*idx
+           r_iter_assignment_rhs = generateAdditionExpr startPosition (generateAdditionExpr local_id (generateProductExpr (generateVar (VarName nullAnno "NTH")) idx) )
+           workItem_guarded_loop_body = FSeq  nullAnno nullSrcSpan r_iter_assignment loopPaddingGuard
+           -- do idx=0,local_chunk_size-1 
+           workItem_guarded_loop = generateLoop idx_var (generateIntConstant 0) workItem_guarded_loopEnd workItem_guarded_loop_body
+           workItem_guarded_loopEnd = generateSubtractionExpr localChunkSize (generateIntConstant 1)
+           workItem_loopEnd = generateSubtractionExpr (generateAdditionExpr startPosition localChunkSize) (generateIntConstant 1)
+           workItem_loopCode = appendFortran_recursive workItem_reductionCode workItem_loopInitialiserCode 
+           workItem_loop = generateLoop reductionIterator startPosition workItem_loopEnd workItem_loopCode
+           workItem_reductionCode = applyGeneratedSrcSpans (replaceAllOccurences_varnamePairs fortran reductionVarNames local_reductionVars)
 
-                                                workGroup_reductionArrays = map (generateLocalReductionArray) reductionVarNames
-                                                workGroup_reductionArraysDecl = map (\x -> declareLocalReductionArray x (nthVar) prog) reductionVarNames
-                                                workGroup_reductionArraysDeclStr = synthesiseDecls_Acc tabs workGroup_reductionArraysDecl localMemSpaceAcc
-                                                workGroup_reductionArraysInitStr = foldl (generateReductionArrayAssignment tabs localIdFortranVar) "" (zip workGroup_reductionArrays local_reductionVars)
-                                                workGroup_reductionCode = generateWorkGroupReduction reductionVarNames reductionIterator fortran
-                                                workGroup_loop = generateLoop reductionIterator (generateIntConstant 1) nthVar workGroup_reductionCode
+           workItem_loopInitialisers = generateLoopInitialisers l (generateVar reductionIterator) Nothing
+           workItem_loopInitialiserCode = case workItem_loopInitialisers of
+                                           [] -> error "synthesiseOpenCLReduce: workItem_loopInitialiserCode - empty list"
+                                           _ -> foldl1 (\accum item -> appendFortran_recursive item accum) workItem_loopInitialisers
 
-                                                global_reductionArrays = map (generateGlobalReductionArray) reductionVarNames
-                                                global_reductionArraysAssignmentStr = foldl (generateReductionArrayAssignment tabs groupIdFortranVar) "" (zip global_reductionArrays local_reductionVars)
+           workGroup_reductionArrays = map (generateLocalReductionArray) reductionVarNames
+           workGroup_reductionArraysDecl = map (\x -> declareLocalReductionArray x (nthVar) prog) reductionVarNames
+           workGroup_reductionArraysDeclStr = synthesiseDecls_Acc tabs workGroup_reductionArraysDecl localMemSpaceAcc
+           workGroup_reductionArraysInitStr = foldl (generateReductionArrayAssignment tabs localIdFortranVar) "" (zip workGroup_reductionArrays local_reductionVars)
+           workGroup_reductionCode = generateWorkGroupReduction reductionVarNames reductionIterator fortran
+           workGroup_loop = generateLoop reductionIterator (generateIntConstant 1) nthVar workGroup_reductionCode
+
+           global_reductionArrays = map (generateGlobalReductionArray) reductionVarNames
+           global_reductionArraysAssignmentStr = foldl (generateReductionArrayAssignment tabs groupIdFortranVar) "" (zip global_reductionArrays local_reductionVars)
+           
 -- WV
 removeIntent :: String -> String
 removeIntent line = let

@@ -17,6 +17,11 @@ import qualified Data.Map as DMap
 
 import CodeEmitterUtils
 
+
+-- For  p SrcSpan (VarName p) (Expr p) (Expr p) (Expr p) (Fortran p)
+-- If p SrcSpan (Expr p) (Fortran p) [((Expr p),(Fortran p))] (Maybe (Fortran p))
+generateIfNoElse :: Expr Anno -> Fortran Anno -> Fortran Anno
+generateIfNoElse cond_expr block_if_true = If nullAnno nullSrcSpan cond_expr block_if_true [] Nothing
 generateLoop :: VarName Anno -> Expr Anno -> Expr Anno -> Fortran Anno -> Fortran Anno
 generateLoop r_iter start end fortran = For nullAnno nullSrcSpan r_iter start end step fortran
                     where
