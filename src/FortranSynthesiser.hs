@@ -41,6 +41,7 @@ import CodeEmitterUtils
 import LanguageFortranTools
 import SubroutineTable                     (SubroutineTable(..),SubRec(..),ArgumentTranslation, SubroutineArgumentTranslationMap, emptyArgumentTranslation, getSubroutineArgumentTranslation, translateArguments,
                                         extractSubroutines, extractProgUnitName)
+import Platform
 
 --    This function produces a list of strings where each element is a line of the original source. This
 --    list is used heavily in this module.
@@ -86,8 +87,8 @@ synthesiseSuperKernelName originalFilenames = base ++ suffix
                                     '_' -> "superkernel"
                                     _ -> "_superkernel")
 
-produceCode_prog :: KernelArgsIndexMap -> SubroutineArgumentTranslationMap -> [String] -> [String] -> Bool -> String -> String -> (Program Anno, String) -> IO(String)
-produceCode_prog allKernelArgsMap argTranslation cppDFlags cppXFlags fixedForm kernelModuleName superKernelName (prog, filename) = do
+produceCode_prog :: KernelArgsIndexMap -> SubroutineArgumentTranslationMap -> [String] -> [String] -> Platform -> Bool -> String -> String -> (Program Anno, String) -> IO(String)
+produceCode_prog allKernelArgsMap argTranslation cppDFlags cppXFlags plat fixedForm kernelModuleName superKernelName (prog, filename) = do
                     originalLines <- readOriginalFileLines cppDFlags cppXFlags fixedForm filename
                     let result = foldl (\accum item -> accum ++ produceCode_progUnit allKernelArgsMap emptyArgumentTranslation (prog, filename) kernelModuleName superKernelName originalLines item) "" prog
                     return result
@@ -455,10 +456,10 @@ synthesiseKernelCaseAlternative tabs state kernelName args =  tabs ++ "case (" +
                 where
                     argsString = foldl (\accum item -> accum ++ "," ++ (varNameStr item)) (varNameStr $ head args) (tail args)
 
-synthesiseKernels :: [String] -> ProgUnit Anno -> (Program Anno, String) -> Fortran Anno -> [(String, String)]
-synthesiseKernels originalLines orig_ast prog codeSeg = case codeSeg of
-                OpenCLMap _ src _ w _ _ _ -> [(synthesiseOpenCLMap "" originalLines orig_ast prog codeSeg, generateKernelName "map" src w)] -- WV20170426
-                OpenCLReduce _ src _ _ _ _ rv _ ->  [(synthesiseOpenCLReduce "" originalLines orig_ast prog codeSeg, generateKernelName "reduce" src (map (\(v, e) -> v) rv))] -- WV20170426
+synthesiseKernels :: Platform -> [String] -> ProgUnit Anno -> (Program Anno, String) -> Fortran Anno -> [(String, String)]
+synthesiseKernels plat originalLines orig_ast prog codeSeg = case codeSeg of
+                OpenCLMap _ src _ w _ _ _ -> [(synthesiseOpenCLMap plat "" originalLines orig_ast prog codeSeg, generateKernelName "map" src w)] -- WV20170426
+                OpenCLReduce _ src _ _ _ _ rv _ ->  [(synthesiseOpenCLReduce plat "" originalLines orig_ast prog codeSeg, generateKernelName "reduce" src (map (\(v, e) -> v) rv))] -- WV20170426
                 _ -> []
 
 synthesiseSizeStatements :: String -> [VarName Anno] -> Program Anno -> (String, String)
@@ -739,8 +740,10 @@ synthesiseDeclList ((expr1, expr2, maybeInt):xs) = outputExprFormatting expr1 ++
 --So what we need to do here is 
 --1/ find *all* variables used in the code segment 'fortran'
 --2/ determine which ones need to be arguments and which one locals
-synthesiseOpenCLMap :: String -> [String] -> ProgUnit Anno -> (Program Anno, String) -> Fortran Anno -> String
-synthesiseOpenCLMap inTabs originalLines orig_ast programInfo (OpenCLMap anno src r w l il fortran) = -- WV20170426
+-- WV: I wonder if there is any benefit in padding the NDRange for Map. If so then that needs to be done partially on the host of course. TODO
+-- WV: Also, apart from padding, there is also loop unrolling to consider, which might help for CPU and MIC, and which would require padding. TODO
+synthesiseOpenCLMap :: Platform -> String -> [String] -> ProgUnit Anno -> (Program Anno, String) -> Fortran Anno -> String
+synthesiseOpenCLMap plat inTabs originalLines orig_ast programInfo (OpenCLMap anno src r w l il fortran) = -- WV20170426
                                                                     inTabs ++ "subroutine " ++ kernelName
                                                                     ++"(" 
                                                                                     ++ allArgs_ptrAdaptionStr ++ ")\n"
@@ -915,8 +918,8 @@ getMissingArgDeclStrs missingArgs_strs originalLines tabs =
 --        primary reduction operation.
 --    -    Assign values to global result array that host will reduce later
 --    -    End subroutine. 
-synthesiseOpenCLReduce :: String ->  [String] -> ProgUnit Anno ->  (Program Anno, String)-> Fortran Anno -> String
-synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce anno src r w l il rv fortran)  = -- WV20170426
+synthesiseOpenCLReduce :: Platform -> String ->  [String] -> ProgUnit Anno ->  (Program Anno, String)-> Fortran Anno -> String
+synthesiseOpenCLReduce plat inTabs originalLines orig_ast programInfo (OpenCLReduce anno src r w l il rv fortran)  = -- WV20170426
                                        inTabs ++ "subroutine " ++ kernelName
                                        ++ "("                 
                                        ++ allArgs_ptrAdaptionStr
@@ -940,10 +943,12 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
                                        ++ tabs ++ groupIdFortranDeclaration
                                        ++ tabs ++ globalIdDeclaration 
                                        ++ tabs ++ reductionIteratorDeclaration
-                                       ++ tabs ++ idxDeclaration
-                                       ++ tabs ++ ndrangeDeclaration
-                                       ++ tabs ++ ndrange_padded_Declaration
-                                       ++ tabs ++ nthreads_Declaration
+                                       ++ (if plat == GPU then
+                                              tabs ++ idxDeclaration
+                                           ++ tabs ++ ndrangeDeclaration
+                                           ++ tabs ++ ndrange_padded_Declaration
+                                           ++ tabs ++ nthreads_Declaration
+                                          else "")
                                        ++ tabs ++ localChunkSizeDeclaration
                                        ++ tabs ++ startPositionDeclaration
                                        ++ "\n"
@@ -966,30 +971,37 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
                                        ++ tabs ++ localIdFortranInitialisation
                                        ++ "#endif\n"
                                        ++ tabs ++ groupIdFortranInitialisation
-                                       ++ tabs ++ "nthreads = NUNITS*NTH\n"
-                                       ++ tabs ++ "ndrange = "++localChunkSize_str ++"\n"
-                                       ++ tabs ++ "ndrange_padded = ndrange\n"
-                                       ++ tabs ++ "\n"
-                                       ++ tabs ++ "if (mod(ndrange_padded, (NUNITS*NTH) ) > 0) then\n" 
-                                       ++ tabs ++ "    ndrange_padded = ( (ndrange_padded/ (NUNITS*NTH) ) +1)* (NUNITS*NTH)\n"
-                                       ++ tabs ++ "end if\n"      
-                                       ++ tabs ++ "chunk_size = ndrange_padded / NUNITS\n"
-
+                                       ++ (if plat == GPU then
+                                              tabs ++ "nthreads = NUNITS*NTH\n"
+                                           ++ tabs ++ "ndrange = "++ globalWorkItems_str ++"\n"
+                                           ++ tabs ++ "ndrange_padded = ndrange\n"
+                                           ++ tabs ++ "\n"
+                                           ++ tabs ++ "if (mod(ndrange_padded, (NUNITS*NTH) ) > 0) then\n" 
+                                           ++ tabs ++ "    ndrange_padded = ( (ndrange_padded/ (NUNITS*NTH) ) +1)* (NUNITS*NTH)\n"
+                                           ++ tabs ++ "end if\n"      
+                                           ++ tabs ++ "chunk_size = ndrange_padded / NUNITS\n"
+                                        else "")
 
                                        ++ "#if NTH > 1\n"
-                                       ++ tabs ++ "local_chunk_size = chunk_size / NTH\n" -- localChunkSize_GPU_str
+                                       ++ tabs ++ (if plat == GPU then "local_chunk_size = chunk_size / NTH\n" else localChunkSize_GPU_str)
                                        ++ "#else\n"
-                                       ++ tabs ++ "local_chunk_size = chunk_size\n" -- localChunkSize_CPU_str
+                                       ++ tabs ++ (if plat == GPU then "local_chunk_size = chunk_size\n" else localChunkSize_CPU_str)
                                        ++ "#endif\n"
-                                       ++ tabs ++ startPosition_str
+                                       ++ tabs ++ (if plat == CPU then startPosition_str else startPosition_str') ++ "\n"
                                        ++ local_reductionVarsInitStr
                                        ++ "\n"
-                                       ++ (mkQ "" (produceCode_fortran programInfo tabs originalLines) workItem_guarded_loop)
+                                       ++ (if plat == GPU then
+                                           (mkQ "" (produceCode_fortran programInfo tabs originalLines) workItem_guarded_loop)
+                                       else
+                                           (mkQ "" (produceCode_fortran programInfo tabs originalLines) workItem_loop)
+                                          )
                                        ++ "\n"
                                        ++ "#if NTH > 1\n"
                                        ++ workGroup_reductionArraysInitStr
                                        ++ "\n"
+                                       ++ "#ifdef BARRIER_OK\n"
                                        ++ tabs ++ localMemBarrier
+                                       ++ "#endif\n"
                                        ++ "\n"
                                        ++ local_reductionVarsInitStr
                                        ++ (mkQ "" (produceCode_fortran programInfo (tabs) originalLines) workGroup_loop)
@@ -1037,7 +1049,7 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
            groupIdInitialisation = "call " ++ outputExprFormatting (getGroupID groupIdVar) ++ "\n"
            groupIdFortranInitialisation = synthesiseAssg programInfo inTabs originalLines (generateAssgCode groupIdFortranVar (generateAdditionExpr groupIdVar (generateIntConstant 1)))
            globalIdInitialisation = "call " ++ outputExprFormatting (getGlobalID globalIdVar) ++ "\n"
-           groupSizeInitialisation_calculation = generateGlobalWorkItemsExpr l
+           globalWorkItems_str = outputExprFormatting (generateGlobalWorkItemsExpr l)
 
            allArgs = extractKernelArguments (OpenCLReduce anno src r w l il rv fortran) -- WV: this is incorrect, these are only *some* args -- WV20170426
            -- FIXME: so here I am adding the missing ones. Instead I should figure out what's wrong with the r/w arguments
@@ -1093,6 +1105,7 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
 
            startPosition_str = (outputExprFormatting startPosition) ++ " = " ++ (outputExprFormatting localChunkSize) ++
                " * " ++ (outputExprFormatting globalIdVar) ++ "\n"
+           startPosition_str' =    (outputExprFormatting startPosition) ++ " = " ++ (outputExprFormatting chunk_size) ++ " * " ++ (outputExprFormatting groupIdVar)
            localChunkSize_str = outputExprFormatting localChunkSize
 
            reductionIterator = generateReductionIterator
@@ -1100,6 +1113,7 @@ synthesiseOpenCLReduce inTabs originalLines orig_ast programInfo (OpenCLReduce a
            idx_var = VarName nullAnno "idx"
            idx = generateVar idx_var
            local_id = generateVar (VarName nullAnno "local_id")
+           chunk_size = generateVar (VarName nullAnno "chunk_size")
            -- (r_iter<ndrange)
            ndrange = generateVar (VarName nullAnno "ndrange")
            guard_cond = Bin nullAnno nullSrcSpan  (RelLT nullAnno) r_iter ndrange

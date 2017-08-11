@@ -48,6 +48,7 @@ import BufferTransferAnalysis     (optimiseBufferTransfers, replaceSubroutineApp
 import SubroutineTable             (constructSubroutineTable, extractSubroutineArgumentTranslationMaps, SubRec(..), addToSubroutineTable)
 import LanguageFortranTools     (Anno, appendToMap, errorLocationFormatting, nullAnno, nullSrcSpan, generateVar, outputTab, parseFile, compilerName)
 import CodeEmitter                 (emit)
+import Platform
 
 -- main :: IO [()]
 main = do
@@ -69,9 +70,12 @@ main = do
     let verbose = case DMap.lookup verboseFlag argMap of
                         Just a -> True
                         Nothing -> False
-    let fixedForm = case DMap.lookup fiexedFormFlag argMap of
+    let fixedForm = case DMap.lookup fixedFormFlag argMap of
                         Just a -> True
                         Nothing -> False
+    let plat = case DMap.lookup platFlag argMap of                        
+                Just [p] ->  (read p) :: Platform 
+                Nothing -> GPU -- defaults to GPU
     let cppDFlags = DMap.findWithDefault [] cppDefineFlag argMap
     let cppXFlags = DMap.findWithDefault [] cppExcludeFlag argMap
 
@@ -128,7 +132,7 @@ main = do
     putStrLn $ compilerName ++ ": Synthesising OpenCL files"
     -- WV: added parsedSubroutines
     -- WV: This is a bit strange, to deal with the kernel and host-side code in one step
-    emit outDirectory cppDFlags cppXFlags fixedForm fileCoordinated_parallelisedList fileCoordinated_bufferOptimisedPrograms argTranslations (newMainAst, mainFilename) [] [] parsedSubroutines (mainStash,stashes) -- < STEP 8 > 
+    emit outDirectory cppDFlags cppXFlags plat fixedForm fileCoordinated_parallelisedList fileCoordinated_bufferOptimisedPrograms argTranslations (newMainAst, mainFilename) [] [] parsedSubroutines (mainStash,stashes) -- < STEP 8 > 
 
 filenameFlag = "-modules"
 outDirectoryFlag = "-out"
@@ -137,9 +141,11 @@ verboseFlag = "-v"
 mainFileFlag = "-main"
 cppDefineFlag = "-D"
 cppExcludeFlag = "-X"
-fiexedFormFlag = "-ffixed-form"
+fixedFormFlag = "-ffixed-form"
+platFlag = "-plat"
 
-flags = [filenameFlag, outDirectoryFlag, loopFusionBoundFlag, cppDefineFlag, cppExcludeFlag, verboseFlag, mainFileFlag, fiexedFormFlag]
+
+flags = [filenameFlag, outDirectoryFlag, loopFusionBoundFlag, platFlag, cppDefineFlag, cppExcludeFlag, verboseFlag, mainFileFlag, fixedFormFlag]
 
 processArgs :: [String] -> DMap.Map String [String]
 processArgs [] = usageError

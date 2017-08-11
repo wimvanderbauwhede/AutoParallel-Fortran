@@ -49,19 +49,22 @@ preProcessingHelper cppDArgs cppXArgs fixedForm filename = do
         then foldl (\accum item -> accum ++ ["-D"++item]) [] cppDArgs
         else  []
     let dFlagStr = if length dFlagList == 0 then  "" else unwords dFlagList    
---    let cpp_cmd = "cpp -P "++dFlagStr++ " "++filename
---    putStrLn cpp_cmd
---    inp <- readCreateProcess (shell cpp_cmd) ""
     inp <- readFile filename
     let
         contentLines = lines inp
-    exp_inp_lines <- inlineDeclsFromUsedModules contentLines                                
+    exp_inp_lines' <- inlineDeclsFromUsedModules contentLines
+    let
+        exp_inp_lines = oneVarDeclPerVarDeclLine exp_inp_lines'
     let 
         inp' = unlines exp_inp_lines 
     let
         (preproc_inp, stash) = preProcess fixedForm cppXArgs inp'
-    writeFile ("./tmp.f95") preproc_inp   
-    let cpp_cmd = "cpp -P "++dFlagStr++ " ./tmp.f95"
+        filename_no_dot 
+            | head filename == '.' = tail $ tail filename
+            | otherwise = filename
+        filename_noext = head $ split '.' filename_no_dot
+    writeFile ("./"++filename_noext++"_tmp.f95") preproc_inp   
+    let cpp_cmd = "cpp -Wno-invalid-pp-token -P "++dFlagStr++ " ./"++filename_noext++"_tmp.f95"
     putStrLn cpp_cmd
     preproc_inp' <- readCreateProcess (shell cpp_cmd) ""
     return (preproc_inp', stash)
@@ -866,12 +869,16 @@ split delim str = map (\w -> map (\c -> if c==delim then ' ' else c) w) $ words 
 -- "integer,", "parameter", "::", "ip=150"
 -- WV 
 findDeclLine :: String -> Bool
-findDeclLine line  =
-        let 
-            chunks = words line -- splits on spaces 
+findDeclLine line  = Data.List.isInfixOf "::" line
+{-        let 
+            line_no_comments = head $ split '!' line
+            -- chunks = words line_no_comments -- splits on spaces 
+            chunks = split ':' line_no_comments -- splits on ':' so should 
         in 
                 if length chunks < 2 then False else chunks !! (length chunks - 2) == "::"
+-}
 
+isImplicitNoneDecl line =  Data.List.isInfixOf "implicit none" line
 -- WV
 isUseDecl line = let
     chunks = filter (not . null) $ words line
@@ -893,6 +900,8 @@ readUsedModuleDecls line =
         do
             test1 <- doesFileExist (module_name ++ ".f95")
             test2 <- doesFileExist (file_name_root ++ ".f95")
+            --print "Test1: "++module_name ++ ".f95 "++(show test1)
+            --print "Test2: "++file_name_root ++ ".f95 "++(show test2)
             module_content_str <- if test1
                 then
                         readFile (module_name ++ ".f95")
@@ -905,6 +914,7 @@ readUsedModuleDecls line =
                         else
                             return ""
             let test3 = isDeclOnly module_content_str
+            -- print "Test2: "++(show test3)
             if test3 
                 then
                     do
@@ -912,14 +922,14 @@ readUsedModuleDecls line =
                         let decl_lines = filter findDeclLine module_lines
                         return decl_lines
                 else
-                    return [line]
+                    return [line] -- ++" ! "++(show (test1,test2,test3))]
 
 isDeclOnly module_content_str = let
     module_lines = lines module_content_str
     relevant_module_lines = filter isRelevantModuleLine module_lines
     non_decl_lines = filter (not . findDeclLine) relevant_module_lines
     in
-        null non_decl_lines
+        null non_decl_lines -- (warning non_decl_lines (show non_decl_lines) )
 
 -- This removes the module declaration as well as "use", "contains" and "implicit". Rather ad-hoc
 isRelevantModuleLine line 
@@ -937,11 +947,111 @@ isRelevantModuleLine line
             res
   where                    
     chunks = words line
--- WV            
+-- WV: need to refine this: any "implicit none" after the "use" should come before the inline
+-- The proper way is to check for the presence of such a line, remove it, and in a second pass add it before the first decl / after the last use
+inlineDeclsFromUsedModules :: [String] -> IO [String]
 inlineDeclsFromUsedModules contentLines = do
-                expandedContentLines <- mapM (\line -> if (isUseDecl line) then (readUsedModuleDecls line) else return [ line ]) contentLines
+                let 
+                    hasImplicitNone = length (filter isImplicitNoneDecl contentLines) > 0
+                expandedContentLines <- mapM (\line -> if (isUseDecl line) then (readUsedModuleDecls line) else return [ line ]) (filter (not . isImplicitNoneDecl) contentLines)
                 let expandedContentLines' = foldl (++) [] expandedContentLines
-                return expandedContentLines'
+                let
+                    expandedContentLines'' 
+                        | hasImplicitNone = addImplicitNone expandedContentLines' 
+                        | otherwise = expandedContentLines'
+                return expandedContentLines''
+
+addImplicitNone :: [String] -> [String]                
+addImplicitNone contentLines = 
+    let
+        (beforeImplicitNoneDecl,afterImplicitNoneDecl, _) = foldl (\ (bls,als,beforeDecl) line -> 
+                let
+                    beforeDecl' = if beforeDecl && (Data.List.isInfixOf "::" line)  then False else beforeDecl
+                in
+                    if beforeDecl' 
+                        then (bls++[line], als, beforeDecl')
+                        else  (bls, als++[line], beforeDecl')
+                ) ([],[],True) contentLines
+    in
+         beforeImplicitNoneDecl ++ ["      implicit none"] ++ afterImplicitNoneDecl
+
+
+
+splitDelim :: String -> String -> [String]                
+splitDelim patt line = 
+    let
+        (chunks,last_chunk,_) = foldl (\ (chunks,current_chunk,rest_of_line) ch -> 
+                    if Data.List.isPrefixOf patt rest_of_line
+                        then
+                            let
+                                 rest_of_line' = case Data.List.stripPrefix patt rest_of_line of
+                                    Just r -> r
+                                    Nothing -> rest_of_line
+                            in                                    
+                                (chunks++[current_chunk],"",rest_of_line')
+                        else 
+                            if length rest_of_line > 0 
+                            then
+                                let
+                                    ch':rest_of_line' = rest_of_line
+                                    current_chunk' = current_chunk++[ch']
+                                in                                        
+                                    (chunks, current_chunk', rest_of_line')
+                            else                                    
+                                 (chunks, current_chunk, rest_of_line)
+                ) ([],"",line) line
+    in
+        chunks++[ last_chunk ]
+{-         
+splitDelim :: String -> String -> [String]
+splitDelim delim str = words (find_delim delim str []) 
+
+find_delim :: String -> String -> String -> String    
+find_delim delim str str' 
+    | length str == 0 =  str'
+    | otherwise = 
+        let
+            nchars = length delim
+            maybe_delim = take nchars str
+        in            
+            if maybe_delim == delim 
+                then 
+                    find_delim delim (drop nchars str) (str'++" ")
+                else 
+                    find_delim delim (tail str) (str' ++[head str])
+        
+-}
+
+oneVarDeclPerVarDeclLine  :: [String] -> [String]        
+oneVarDeclPerVarDeclLine contentLines =
+    let
+        contentLines' :: [[String]]
+        contentLines' = map (\line -> if isVarDeclWithMultipleVars line then splitOutVarDecls line else [ line ] ) contentLines
+    in
+        foldl (++) [] contentLines'
+
+isVarDeclWithMultipleVars :: String -> Bool        
+isVarDeclWithMultipleVars line =
+    let
+        line_no_comments = head $ split '!' line
+        chunks = splitDelim "::" line_no_comments
+    in
+        (findDeclLine line_no_comments ) && (length chunks ==2) && (Data.List.isInfixOf "," (chunks !! 1))
+        
+--isVarDecl
+--commas after ::
+splitOutVarDecls :: String -> [String]
+splitOutVarDecls line = 
+    let
+        line_no_comments =  head $ splitDelim "!" line
+        lhs:rhs:[] = splitDelim "::" line_no_comments
+        rhs_vars = splitDelim "," rhs
+        new_lines = map (\var -> lhs++" :: "++var) rhs_vars
+    in        
+        new_lines
+-- split on "::"
+-- split RHS on ','
+
 
 -- paralleliseProgUnit_foldl :: SubroutineTable -> (SubroutineTable, [(String, String)]) -> String -> (SubroutineTable, [(String, String)])
 -- paralleliseProgUnit :: SubroutineTable ->  [(String, String)] -> (SubroutineTable, [(String, String)])

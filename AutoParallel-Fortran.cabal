@@ -28,7 +28,7 @@ executable AutoParallel-Fortran-exe
 --  ghc-options:         -O2 
   -- -i./language-fortran/src
   default-language:    Haskell2010
-  other-modules: BufferTransferAnalysis, CodeEmitter, CodeEmitterUtils, CombineKernels, ConstantFolding, F95IntrinsicFunctions, FortranGenerator, FortranSynthesiser, Language.Fortran, Language.Fortran.Lexer, Language.Fortran.Parser, Language.Fortran.PreProcess, LanguageFortranTools, LoopAnalysis, MiniPP, PreProcessor, SubroutineTable, Transformer, TupleTable, VarAccessAnalysis, VarDependencyAnalysis, Warning
+  other-modules: BufferTransferAnalysis, CodeEmitter, CodeEmitterUtils, CombineKernels, ConstantFolding, F95IntrinsicFunctions, FortranGenerator, FortranSynthesiser, Language.Fortran, Language.Fortran.Lexer, Language.Fortran.Parser, Language.Fortran.PreProcess, LanguageFortranTools, LoopAnalysis, MiniPP, PreProcessor, SubroutineTable, Transformer, TupleTable, VarAccessAnalysis, VarDependencyAnalysis, Platform, Warning
 
 test-suite AutoParallel-Fortran-test
   type:                exitcode-stdio-1.0

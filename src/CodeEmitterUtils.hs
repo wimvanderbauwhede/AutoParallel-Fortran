@@ -13,7 +13,7 @@ import qualified Data.Map as DMap
 
 type KernelArgsIndexMap = DMap.Map (VarName Anno) Int
 
-emitDeclStr typestr varstr =  "typestr :: " ++ outputExprFormatting (generateVar (VarName nullAnno varstr)) ++ "\n"
+emitDeclStr typestr varstr =  typestr++" :: " ++ outputExprFormatting (generateVar (VarName nullAnno varstr)) ++ "\n"
 localMemSpaceAcc = " !$ACC MemSpace local"
 globalMemSpaceAcc = "!$ACC MemSpace global"
 localChunkSize = generateVar (VarName nullAnno "local_chunk_size")
