@@ -92,7 +92,7 @@ generateArgumentTranslation subTable (Call anno src callExpr arglist) = varNameR
 
             callArgs = everything (++) (mkQ [] extractExpr_list) arglist
             bodyArgs = everything (++) (mkQ [] extractArgName) arg
-            -- This is a bit strange: if a sub call has const args this would always return an error?
+            -- WV: FIXME: if a sub call has const or expr args this will always return an error. 
             callArgs_varNames = map (\x -> if extractVarNames x == [] then error ("substituteArguments: " ++ (show x)++" ; "++(show callArgs)) else  head (extractVarNames x)) callArgs
             bodyArgs_varNames = map (\(ArgName _ str) -> VarName nullAnno str) bodyArgs
 

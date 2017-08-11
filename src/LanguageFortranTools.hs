@@ -1033,7 +1033,7 @@ oneVarDeclPerVarDeclLine contentLines =
 isVarDeclWithMultipleVars :: String -> Bool        
 isVarDeclWithMultipleVars line =
     let
-        line_no_comments = head $ split '!' line
+        line_no_comments = head $ splitDelim "!" line
         chunks = splitDelim "::" line_no_comments
     in
         (findDeclLine line_no_comments ) && (length chunks ==2) && (Data.List.isInfixOf "," (chunks !! 1))

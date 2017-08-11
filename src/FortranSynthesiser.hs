@@ -131,7 +131,13 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
             containedProgUnitCode = foldl (\accum item -> accum ++ (produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines item)) "" progUnits
             nonGeneratedBlockCode_indent 
                 | block_ls < 0 || length originalLines < block_ls = "      " -- 
-                | otherwise = extractIndent (originalLines!!(block_ls-1))
+--                | otherwise = extractIndent (originalLines!!(block_ls-1))
+                | otherwise = let
+                        tab1 = extractIndent (originalLines!!(block_ls-1))
+                        tab2 = extractIndent (originalLines!!block_ls)
+                    in
+                        if length tab1 > length tab2 then tab1 else tab2
+
             maybeOclInitCall = Just (Call nullAnno nullSrcSpan (generateVar (VarName nullAnno ((initModuleName superKernelName)))) (ArgList nullAnno (NullExpr nullAnno nullSrcSpan))) -- this is the OpenCL init call node
 
 produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines (Module _ src _ _ _ _ progUnits) =
@@ -190,7 +196,12 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
             nonGeneratedBlockCode = extractOriginalCode_Offset1 originalLines srcspan
             nonGeneratedBlockCode_indent 
                 | fortran_ls < 0 || length originalLines < fortran_ls = "      " -- 
-                | otherwise = extractIndent (originalLines!!(fortran_ls-1))
+--                | otherwise = extractIndent (originalLines!!(fortran_ls-1))
+                | otherwise = let
+                        tab1 = extractIndent (originalLines!!(fortran_ls-1))
+                        tab2 = extractIndent (originalLines!!fortran_ls)
+                    in
+                        if length tab1 > length tab2 then tab1 else tab2
 
             argTranslation = getSubroutineArgumentTranslation argTranslationSubroutines subroutineName
 
@@ -260,8 +271,11 @@ produceCodeBlock allKernelArgsMap argTranslation prog tabs originalLines maybePr
 
             nonGeneratedBlockCode_indent
                 | fortran_ls < 0 || length originalLines < fortran_ls = "      " -- 
-                | otherwise = extractIndent (originalLines!!(fortran_ls-1))
-
+                | otherwise = let
+                        tab1 = extractIndent (originalLines!!(fortran_ls-1))
+                        tab2 = extractIndent (originalLines!!fortran_ls)
+                    in
+                        if length tab1 > length tab2 then tab1 else tab2
             (sizeDeclarations, shapeStatements) = synthesiseSizeStatements_kernel nonGeneratedBlockCode_indent (fst prog)
             (bufferDeclarationStatements, loadBufferStatements) = synthesiseBufferLoads_kernel nonGeneratedBlockCode_indent allKernelArgsMap argTranslation block
             statePtrDeclStr = synthesiseDecl tabs statePtrDecl
