@@ -51,6 +51,7 @@ emit specified cppDFlags cppXFlags plat fixedForm programs_verboseArgs programs_
                 --WV: now I need to parse this generated code, i.e. unlines it and inspect the lines an substitute the labeled lines for their contents from the stash
                 let
                     main_code' = restoreIfDefRegions main_code mainStash
+                -- WV: TODO: I should do the same for the _host code    
                 let host_programs = zip host_code (map (\x -> specified ++ "/" ++ x ++ "_host.f95") originalFilenames)
 
                 writeFile moduleFilename (if fixedForm then fixedFormFormat superKernel_module else superKernel_module)

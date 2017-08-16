@@ -103,6 +103,7 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
                   nonGeneratedHeaderCode
            ++     nonGeneratedBlockCode_indent ++ "use oclWrapper\n" 
            ++     nonGeneratedBlockCode_indent ++ "use " ++ (initModuleName kernelModuleName) ++ "\n" 
+           ++     maybeImplicitNone
            -- for some reason, the declarations have gone missing
            ++ nonGeneratedBlockCode_indent ++ "\n! Original declarations\n"
            ++ origDecls ++ "\n\n"           
@@ -124,7 +125,10 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
             (nonGeneratedHeaderSrc, nonGeneratedFooterSrc) = getSrcSpanNonIntersection src blockSrc
 --            ((SrcLoc _ nonGeneratedHeader_ls _), (SrcLoc _ nonGeneratedHeader_le _)) = nonGeneratedHeaderSrc
 --            nonGeneratedHeaderCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedHeader_ls..nonGeneratedHeader_le-1]
-            nonGeneratedHeaderCode = extractOriginalCode_Offset1 originalLines nonGeneratedHeaderSrc
+            (nonGeneratedHeaderCode, maybeImplicitNone) = checkForImplicitNone $ extractOriginalCode_Offset1 originalLines nonGeneratedHeaderSrc
+--            maybeImplicitNone = warning maybeImplicitNone' maybeImplicitNone'
+--            nonGeneratedHeaderCode_lines = lines nonGeneratedHeaderCode
+--            nonGeneratedHeaderCode' = unlines (warning nonGeneratedHeaderCode_lines (show nonGeneratedHeaderCode_lines))
 --            ((SrcLoc _ nonGeneratedFooter_ls _), (SrcLoc _ nonGeneratedFooter_le _)) = nonGeneratedFooterSrc
 --            nonGeneratedFooterCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedFooter_ls..nonGeneratedFooter_le-1]
             nonGeneratedFooterCode = extractOriginalCode_Offset1 originalLines nonGeneratedFooterSrc
@@ -171,6 +175,7 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
                                                    nonGeneratedHeaderCode 
                                                 ++ nonGeneratedBlockCode_indent ++ "use " ++ (initModuleName kernelModuleName) ++ "\n" 
                                                 ++ nonGeneratedBlockCode_indent ++ "use oclWrapper\n" 
+                                                ++ maybeImplicitNone
                                                 ++ nonGeneratedBlockCode_indent ++ "real (kind=4) :: exectime\n"
                                                 ++ global_reductionArraysDeclStr
                                                 ++ everything (++) (mkQ "" (produceCodeBlock allKernelArgsMap argTranslation progWithFilename nonGeneratedBlockCode_indent originalLines Nothing)) block
@@ -183,8 +188,8 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
 
 --            ((SrcLoc _ nonGeneratedHeader_ls _), (SrcLoc _ nonGeneratedHeader_le _)) = nonGeneratedHeaderSrc
 --            nonGeneratedHeaderCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedHeader_ls..nonGeneratedHeader_le-1]
-            nonGeneratedHeaderCode = extractOriginalCode_Offset1 originalLines nonGeneratedHeaderSrc
-
+            -- nonGeneratedHeaderCode = extractOriginalCode_Offset1 originalLines nonGeneratedHeaderSrc
+            (nonGeneratedHeaderCode, maybeImplicitNone) = checkForImplicitNone $ extractOriginalCode_Offset1 originalLines nonGeneratedHeaderSrc
 --            ((SrcLoc _ nonGeneratedFooter_ls _), (SrcLoc _ nonGeneratedFooter_le _)) = nonGeneratedFooterSrc
 --            nonGeneratedFooterCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedFooter_ls..nonGeneratedFooter_le-1]
             nonGeneratedFooterCode = extractOriginalCode_Offset1 originalLines nonGeneratedFooterSrc
@@ -214,6 +219,26 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
 
 produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines progunit = foldl (++) "" (gmapQ (mkQ "" (produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines)) progunit)
 
+
+checkForImplicitNone :: String -> (String, String)
+checkForImplicitNone lines_str = 
+    let
+        code_lines = lines lines_str
+        (other_code_lines, maybeImplicitNone) = foldl isImplicitNone ([],"") code_lines
+    in
+        ((unlines other_code_lines)++"\n",maybeImplicitNone++"\n")
+
+isImplicitNone :: ([String],String) -> String -> ([String],String)
+isImplicitNone (other_code_lines, _) line = 
+            let
+                chunks = words line
+            in 
+                if "implicit" `elem` chunks && "none" `elem` chunks
+                    then
+                        (other_code_lines, line)
+                    else
+                        (other_code_lines++[line],"")
+        
 
 {- 
 produceCodeBlock allKernelArgsMap emptyArgumentTranslation progWithFilename nonGeneratedBlockCode_indent originalLines maybeOclInitCall block   
@@ -832,7 +857,7 @@ synthesiseOpenCLMap plat inTabs originalLines orig_ast programInfo (OpenCLMap an
 generateRangeRelDecls :: [(VarName Anno, Expr Anno, Expr Anno, Expr Anno)] -> String -> String
 generateRangeRelDecls loopvartups tabs =
     let
-        loopvarnames = map (\(v,_,_,_) -> varNameStr v) loopvartups
+        loopvarnames = nub $ map (\(v,_,_,_) -> varNameStr v) loopvartups
         rangevardecls = map (\v -> tabs++"integer :: "++v++"_range") loopvarnames
         relvardecls = map (\v -> tabs++"integer :: "++v++"_rel") loopvarnames
     in
