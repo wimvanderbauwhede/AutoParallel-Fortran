@@ -19,6 +19,9 @@ import Language.Fortran
 import PreProcessor                     (preProcess)
 import F95IntrinsicFunctions (f95IntrinsicFunctions)
 
+type ModuleVarsTable = DMap.Map String String
+--  the Int is a label in the source code, to be replaced with the stashed code
+type CodeStash = DMap.Map Int [String]
 type Anno = DMap.Map (String) [String]
 
 --    Type used when determining allowed values for iterator variables. Holds the currently chosen values
@@ -30,29 +33,29 @@ nullAnno :: Anno
 nullAnno = DMap.empty
 
 --    Taken from language-fortran example. Runs preprocessor on target source and then parses the result, returning an AST.
-parseFile :: [String] -> [String] -> Bool -> String -> IO ( (Program Anno, [String]) , (String, DMap.Map Int [String]))
+parseFile :: [String] -> [String] -> Bool -> String -> IO ( (Program Anno, [String]) , (String, CodeStash), ModuleVarsTable)
 parseFile cppDArgs cppXArgs fixedForm filename = do 
-    (preproc_inp, stash) <- preProcessingHelper cppDArgs cppXArgs fixedForm filename
+    (preproc_inp, stash,moduleVarTable) <- preProcessingHelper cppDArgs cppXArgs fixedForm True filename
     let
         preproc_inp_lines = lines preproc_inp
-    return ((parse  preproc_inp, preproc_inp_lines),(filename, stash))
+    return ((parse  preproc_inp, preproc_inp_lines),(filename, stash),moduleVarTable)
     --return (parse  preproc_inp, preproc_inp_lines) -- ,(filename, stash))
 
 cpp :: [String] -> [String] -> Bool -> String -> IO String
 cpp cppDArgs cppXArgs fixedForm filename = do 
-    (preproc_inp, _) <- preProcessingHelper cppDArgs cppXArgs fixedForm filename
+    (preproc_inp, _, _) <- preProcessingHelper cppDArgs cppXArgs fixedForm False filename
     return preproc_inp
 
-preProcessingHelper :: [String] -> [String] -> Bool -> String -> IO (String, DMap.Map Int [String])
-preProcessingHelper cppDArgs cppXArgs fixedForm filename = do 
+preProcessingHelper :: [String] -> [String] -> Bool -> Bool -> String -> IO (String, CodeStash, ModuleVarsTable)
+preProcessingHelper cppDArgs cppXArgs fixedForm inlineModules filename = do 
     let dFlagList = if length cppDArgs > 0
         then foldl (\accum item -> accum ++ ["-D"++item]) [] cppDArgs
         else  []
     let dFlagStr = if length dFlagList == 0 then  "" else unwords dFlagList    
     inp <- readFile filename
     let
-        contentLines = lines inp
-    exp_inp_lines' <- inlineDeclsFromUsedModules contentLines
+        contentLines = lines inp             
+    (exp_inp_lines',moduleVarTable) <- inlineDeclsFromUsedModules True contentLines
     let
         exp_inp_lines = oneVarDeclPerVarDeclLine exp_inp_lines'
     let 
@@ -65,9 +68,10 @@ preProcessingHelper cppDArgs cppXArgs fixedForm filename = do
         filename_noext = head $ split '.' filename_no_dot
     writeFile ("./"++filename_noext++"_tmp.f95") preproc_inp   
     let cpp_cmd = "cpp -Wno-invalid-pp-token -P "++dFlagStr++ " ./"++filename_noext++"_tmp.f95"
+--    putStrLn $ "call to "++(if inlineModules then "cpp" else "parseFile") ++ " " ++ filename
     putStrLn cpp_cmd
     preproc_inp' <- readCreateProcess (shell cpp_cmd) ""
-    return (preproc_inp', stash)
+    return (preproc_inp', stash,moduleVarTable)
 
 
 
@@ -869,7 +873,7 @@ split delim str = map (\w -> map (\c -> if c==delim then ' ' else c) w) $ words 
 -- "integer,", "parameter", "::", "ip=150"
 -- WV 
 findDeclLine :: String -> Bool
-findDeclLine line  = Data.List.isInfixOf "::" line
+findDeclLine line  = Data.List.isInfixOf "::" line && head ( filter (/=' ') line) /= '!'
 {-        let 
             line_no_comments = head $ split '!' line
             -- chunks = words line_no_comments -- splits on spaces 
@@ -877,6 +881,22 @@ findDeclLine line  = Data.List.isInfixOf "::" line
         in 
                 if length chunks < 2 then False else chunks !! (length chunks - 2) == "::"
 -}
+
+findDeclLineVars :: String -> [String]
+findDeclLineVars line  = if Data.List.isInfixOf "::" line && head ( filter (/=' ') line) /= '!'
+        then
+            -- get the vars:
+            let
+                line_no_comments =  head $ splitDelim "!" line -- (warning line ("<OL:"++line++">"))
+                line_no_spaces = filter (/=' ') line_no_comments
+                lhs:rhs:[] = splitDelim "::" line_no_spaces -- (warning line_no_spaces ("<L:"++line_no_spaces++">"))
+                rhs_mvars = splitDelim "," rhs -- (warning rhs ("<"++rhs++">"))
+                rhs_vars = map (head . (splitDelim "=")) rhs_mvars
+            in        
+                rhs_vars            
+        else
+            []
+
 
 isImplicitNoneDecl line =  Data.List.isInfixOf "implicit none" line
 -- WV
@@ -887,7 +907,7 @@ isUseDecl line = let
 
 -- WV This is weak because I assume the module name is the file name. I should at least try and remove "module_" from the name TODO
 -- WV But even then, this should only really be done for modules that only contain declarations, so I should check that TODO
-readUsedModuleDecls :: String -> IO [String]
+readUsedModuleDecls :: String -> IO ([String],(String,[String]))
 readUsedModuleDecls line = 
     let
         chunks = filter (not . null) $ words line
@@ -918,11 +938,14 @@ readUsedModuleDecls line =
             if test3 
                 then
                     do
-                        let module_lines = lines module_content_str
-                        let decl_lines = filter findDeclLine module_lines
-                        return decl_lines
+                        let 
+                            module_lines = lines module_content_str
+                            (decl_lines, other_lines) = partition findDeclLine module_lines
+                            vars_per_line = map findDeclLineVars decl_lines
+                            vars = foldl (++) [] vars_per_line
+                        return (decl_lines,(module_name,vars)) -- here we should also return the module, and preferably a list of all declared vars in the module
                 else
-                    return [line] -- ++" ! "++(show (test1,test2,test3))]
+                    return ([line],("",[])) -- ++" ! "++(show (test1,test2,test3))]
 
 isDeclOnly module_content_str = let
     module_lines = lines module_content_str
@@ -947,19 +970,28 @@ isRelevantModuleLine line
             res
   where                    
     chunks = words line
--- WV: need to refine this: any "implicit none" after the "use" should come before the inline
+-- WV: refined this: any "implicit none" after the "use" should come before the inline
 -- The proper way is to check for the presence of such a line, remove it, and in a second pass add it before the first decl / after the last use
-inlineDeclsFromUsedModules :: [String] -> IO [String]
-inlineDeclsFromUsedModules contentLines = do
+-- Also, we need to build a database of the modules and the declarations taken from each module
+inlineDeclsFromUsedModules :: Bool -> [String] -> IO ([String], ModuleVarsTable)
+inlineDeclsFromUsedModules False contentLines = return (contentLines, DMap.empty)
+inlineDeclsFromUsedModules True contentLines = do
                 let 
                     hasImplicitNone = length (filter isImplicitNoneDecl contentLines) > 0
-                expandedContentLines <- mapM (\line -> if (isUseDecl line) then (readUsedModuleDecls line) else return [ line ]) (filter (not . isImplicitNoneDecl) contentLines)
+                expandedContentLines' <- mapM (\line -> if (isUseDecl line) then (readUsedModuleDecls line) else return ([ line ],("",[]))) (filter (not . isImplicitNoneDecl) contentLines)
+                let
+                    (expandedContentLines,moduleVarTupleList) = unzip expandedContentLines'
+                let
+                    -- now we must reverse this: we want per variable the module 
+                    -- we assume vars are unique, so no conflicts across modules
+                    vmtuplst = foldl (++) [] $ map (\(mod_name, vars) -> map (\var -> (var,mod_name)) vars) moduleVarTupleList -- [ (mod,[vars]) ,...]
+                    moduleVarTable = DMap.fromList vmtuplst
                 let expandedContentLines' = foldl (++) [] expandedContentLines
                 let
                     expandedContentLines'' 
                         | hasImplicitNone = addImplicitNone expandedContentLines' 
                         | otherwise = expandedContentLines'
-                return expandedContentLines''
+                return (expandedContentLines'', moduleVarTable)
 
 addImplicitNone :: [String] -> [String]                
 addImplicitNone contentLines = 

@@ -39,6 +39,7 @@ import qualified Data.Map as DMap
 import FortranGenerator -- WV: TODO: add the import list here
 import CodeEmitterUtils
 import LanguageFortranTools
+import Language.Fortran.Parser (statement_parse)
 import SubroutineTable                     (SubroutineTable(..),SubRec(..),ArgumentTranslation, SubroutineArgumentTranslationMap, emptyArgumentTranslation, getSubroutineArgumentTranslation, translateArguments,
                                         extractSubroutines, extractProgUnitName)
 import Platform
@@ -84,34 +85,31 @@ synthesiseSuperKernelName originalFilenames = base ++ suffix
                                     _ -> "_etc_superkernel")
                 else 
                     (case (last base) of
-                                    '_' -> "superkernel"
-                                    _ -> "_superkernel")
+                                        '_' -> "superkernel"
+                                        _ -> "_superkernel")
 
-produceCode_prog :: KernelArgsIndexMap -> SubroutineArgumentTranslationMap -> [String] -> [String] -> Platform -> Bool -> String -> String -> (Program Anno, String) -> IO(String)
-produceCode_prog allKernelArgsMap argTranslation cppDFlags cppXFlags plat fixedForm kernelModuleName superKernelName (prog, filename) = do
+produceCode_prog :: KernelArgsIndexMap -> SubroutineArgumentTranslationMap -> [String] -> [String] -> Platform -> Bool -> String -> String -> ((Program Anno, String),ModuleVarsTable) -> IO(String)
+produceCode_prog allKernelArgsMap argTranslation cppDFlags cppXFlags plat fixedForm kernelModuleName superKernelName ((prog, filename),modVarTable) = do
                     originalLines <- readOriginalFileLines cppDFlags cppXFlags fixedForm filename
-                    let result = foldl (\accum item -> accum ++ produceCode_progUnit allKernelArgsMap emptyArgumentTranslation (prog, filename) kernelModuleName superKernelName originalLines item) "" prog
-                    return result
+                    let result = foldl (\accum item -> accum ++ produceCode_progUnit allKernelArgsMap emptyArgumentTranslation ((prog, filename),modVarTable) kernelModuleName superKernelName originalLines item) "" prog
+                    return result -- (warning result result)
 
-produceCode_progUnit :: KernelArgsIndexMap -> SubroutineArgumentTranslationMap -> (Program Anno, String) -> String -> String -> [String] -> ProgUnit Anno -> String
-produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines (Main _ src subname _ block progUnits) =    
+produceCode_progUnit :: KernelArgsIndexMap -> SubroutineArgumentTranslationMap -> ((Program Anno, String),ModuleVarsTable) -> String -> String -> [String] -> ProgUnit Anno -> String
+-- Code for Main
+produceCode_progUnit allKernelArgsMap argTranslationSubroutines (progWithFilename,modVarTable) kernelModuleName superKernelName originalLines (Main _ src subname _ block progUnits) =    
     if (length originalLines == 0) 
         then
             error "produceCode_progUnit: length originalLines == 0\n"
-            -- everything (++) (mkQ "" (produceCodeBlock allKernelArgsMap emptyArgumentTranslation progWithFilename nonGeneratedBlockCode_indent originalLines maybeOclInitCall)) block
         else 
                   nonGeneratedHeaderCode
            ++     nonGeneratedBlockCode_indent ++ "use oclWrapper\n" 
            ++     nonGeneratedBlockCode_indent ++ "use " ++ (initModuleName kernelModuleName) ++ "\n" 
+           ++     maybeRestoredUseModuleDecls
            ++     maybeImplicitNone
            -- for some reason, the declarations have gone missing
            ++ nonGeneratedBlockCode_indent ++ "\n! Original declarations\n"
            ++ origDecls ++ "\n\n"           
-           -- ++     kernelInitialisationStrs
-           -- ++    produceCode_fortran progWithFilename nonGeneratedBlockCode_indent originalLines oclInitCall
-           -- ++     everything (++) (mkQ "" (produceCodeBlock allKernelArgsMap emptyArgumentTranslation progWithFilename nonGeneratedBlockCode_indent originalLines)) blockWithInit
---           ++ "! *** everything (++) (mkQ (produceCodeBlock allKernelArgsMap emptyArgumentTranslation progWithFilename nonGeneratedBlockCode_indent originalLines maybeOclInitCall)) block ***\n"
-           ++     everything (++) (mkQ "" (produceCodeBlock allKernelArgsMap emptyArgumentTranslation progWithFilename nonGeneratedBlockCode_indent originalLines maybeOclInitCall)) block
+           ++ everything (++) (mkQ "" (produceCodeBlock allKernelArgsMap emptyArgumentTranslation progWithFilename modVarTable nonGeneratedBlockCode_indent originalLines "!\n" "!NOTHING!\n" maybeOclInitCall)) block
 --           ++ "! containedProgUnitCode\n"
            ++     containedProgUnitCode -- WV: apparently this is empty
 --           ++ "! Footer (produceCode_progUnit a)\n"
@@ -120,7 +118,11 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
 --           ++ "! END of code generated by produceCode_progUnit "
   where
             (Block blockAnno useBlock implicit blockSrc blockDecl blockFortran) = block
-            origDecls = miniPPD blockDecl
+            -- blockDecl :: Decl p,  Decl p = Decl p SrcSpan [(Expr p, Expr p, Maybe Int)] (Type p) | 
+            -- origDecls = miniPPD blockDecl    
+            -- Here we want to filter out the decls that came from modules, and put the module use decls back 
+            (origDecls,maybeRestoredUseModuleDecls) = restoreUsedModuleDecls blockDecl modVarTable
+--            origDecls = unlines $ map miniPPD $ traverseDSeq blockDecl []
             ((SrcLoc _ block_ls _), _) = blockSrc
             (nonGeneratedHeaderSrc, nonGeneratedFooterSrc) = getSrcSpanNonIntersection src blockSrc
 --            ((SrcLoc _ nonGeneratedHeader_ls _), (SrcLoc _ nonGeneratedHeader_le _)) = nonGeneratedHeaderSrc
@@ -132,7 +134,7 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
 --            ((SrcLoc _ nonGeneratedFooter_ls _), (SrcLoc _ nonGeneratedFooter_le _)) = nonGeneratedFooterSrc
 --            nonGeneratedFooterCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedFooter_ls..nonGeneratedFooter_le-1]
             nonGeneratedFooterCode = extractOriginalCode_Offset1 originalLines nonGeneratedFooterSrc
-            containedProgUnitCode = foldl (\accum item -> accum ++ (produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines item)) "" progUnits
+            containedProgUnitCode = foldl (\accum item -> accum ++ (produceCode_progUnit allKernelArgsMap argTranslationSubroutines (progWithFilename,modVarTable)  kernelModuleName superKernelName originalLines item)) "" progUnits
             nonGeneratedBlockCode_indent 
                 | block_ls < 0 || length originalLines < block_ls = "      " -- 
 --                | otherwise = extractIndent (originalLines!!(block_ls-1))
@@ -143,8 +145,8 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
                         if length tab1 > length tab2 then tab1 else tab2
 
             maybeOclInitCall = Just (Call nullAnno nullSrcSpan (generateVar (VarName nullAnno ((initModuleName superKernelName)))) (ArgList nullAnno (NullExpr nullAnno nullSrcSpan))) -- this is the OpenCL init call node
-
-produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines (Module _ src _ _ _ _ progUnits) =
+-- Code for Modules
+produceCode_progUnit allKernelArgsMap argTranslationSubroutines (progWithFilename,modVarTable)  kernelModuleName superKernelName originalLines (Module _ src _ _ _ _ progUnits) =
     if (length originalLines == 0) 
         then "" 
         else 
@@ -164,24 +166,24 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
 --            ((SrcLoc _ nonGeneratedFooter_ls _), (SrcLoc _ nonGeneratedFooter_le _)) = nonGeneratedFooterSrc
 --            nonGeneratedFooterCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedFooter_ls..nonGeneratedFooter_le-1]
             nonGeneratedFooterCode = extractOriginalCode_Offset1 originalLines nonGeneratedFooterSrc
-            containedProgUnitCode = foldl (\accum item -> accum ++ (produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines item)) "" progUnits
-
-produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines (Sub _ src _ (SubName _ subroutineName) _ block) =  
+            containedProgUnitCode = foldl (\accum item -> accum ++ (produceCode_progUnit allKernelArgsMap argTranslationSubroutines (progWithFilename,modVarTable)  kernelModuleName superKernelName originalLines item)) "" progUnits
+-- Code for Subroutines
+produceCode_progUnit allKernelArgsMap argTranslationSubroutines (progWithFilename,modVarTable)  kernelModuleName superKernelName originalLines (Sub _ src _ (SubName _ subroutineName) _ block) =  
             if (length originalLines == 0) 
                 then
---                                                global_reductionArraysDeclStr ++
-                                                everything (++) (mkQ "" (produceCodeBlock allKernelArgsMap argTranslation progWithFilename nonGeneratedBlockCode_indent originalLines Nothing)) block
+                                                everything (++) (mkQ "" (produceCodeBlock allKernelArgsMap argTranslation progWithFilename modVarTable nonGeneratedBlockCode_indent originalLines "" "" Nothing)) block
                 else
                                                    nonGeneratedHeaderCode 
                                                 ++ nonGeneratedBlockCode_indent ++ "use " ++ (initModuleName kernelModuleName) ++ "\n" 
                                                 ++ nonGeneratedBlockCode_indent ++ "use oclWrapper\n" 
-                                                ++ maybeImplicitNone
-                                                ++ nonGeneratedBlockCode_indent ++ "real (kind=4) :: exectime\n"
-                                                ++ global_reductionArraysDeclStr
-                                                ++ everything (++) (mkQ "" (produceCodeBlock allKernelArgsMap argTranslation progWithFilename nonGeneratedBlockCode_indent originalLines Nothing)) block
+                                                ++ "!" ++ maybeImplicitNone
+--                                                ++ nonGeneratedBlockCode_indent ++ "real (kind=4) :: exectime\n"
+--                                                ++ global_reductionArraysDeclStr
+                                                ++ everything (++) (mkQ "" (produceCodeBlock allKernelArgsMap argTranslation progWithFilename modVarTable nonGeneratedBlockCode_indent originalLines maybeImplicitNone extraDecls Nothing)) block
                                                 ++ "! Footer (produceCode_progUnit c)\n"
                                                 ++ nonGeneratedFooterCode    
         where
+            extraDecls = nonGeneratedBlockCode_indent ++ "real (kind=4) :: exectime\n" ++ global_reductionArraysDeclStr ++ "\n"
             firstFortranSrc = head (everything (++) (mkQ [] (getFirstFortranSrc)) block)
             blockSrc = srcSpan block
             (nonGeneratedHeaderSrc, nonGeneratedFooterSrc) = getSrcSpanNonIntersection src blockSrc
@@ -217,7 +219,8 @@ produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename
             global_reductionArraysDeclsWithoutIntent = map (removeIntentFromDecl) global_reductionArraysDecls
             global_reductionArraysDeclStr = synthesiseDecls nonGeneratedBlockCode_indent global_reductionArraysDeclsWithoutIntent
 
-produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines progunit = foldl (++) "" (gmapQ (mkQ "" (produceCode_progUnit allKernelArgsMap argTranslationSubroutines progWithFilename kernelModuleName superKernelName originalLines)) progunit)
+produceCode_progUnit allKernelArgsMap argTranslationSubroutines (progWithFilename,modVarTable)  kernelModuleName superKernelName originalLines progunit = 
+    foldl (++) "" (gmapQ (mkQ "" (produceCode_progUnit allKernelArgsMap argTranslationSubroutines (progWithFilename,modVarTable)  kernelModuleName superKernelName originalLines)) progunit)
 
 
 checkForImplicitNone :: String -> (String, String)
@@ -238,28 +241,56 @@ isImplicitNone (other_code_lines, _) line =
                         (other_code_lines, line)
                     else
                         (other_code_lines++[line],"")
-        
 
+restoreUsedModuleDecls' :: [Decl Anno] -> ModuleVarsTable -> (String,String)
+restoreUsedModuleDecls' declList modVarTable = 
+    let
+        (remainingDeclList,restoredUseModuleDeclList) =foldl (\acc decl ->
+                let
+                    (remainingDeclList,restoredUseModuleDeclList) = acc
+                    Decl _ _ ((var_name_expr,_,_):[]) _ = decl
+                    var_name = (\(VarName _ v) -> v) $ head $ extractVarNames var_name_expr
+                    mod_name = case DMap.lookup var_name modVarTable of
+                        Just m -> m
+                        Nothing -> ""
+                in
+                    if mod_name == "" 
+                        then (remainingDeclList ++ [decl], restoredUseModuleDeclList)
+                        else (remainingDeclList, restoredUseModuleDeclList++[mod_name])
+              ) ([],[]) declList
+        origDecls = unlines $ map (\decl -> (miniPPD decl)++" !!" ) remainingDeclList
+        maybeRestoredUseModuleDecls = unlines $ nub $ map (\mod_name -> "      use "++mod_name) restoredUseModuleDeclList
+    in
+        (origDecls,maybeRestoredUseModuleDecls) 
+
+restoreUsedModuleDecls :: Decl Anno -> ModuleVarsTable -> (String,String)
+restoreUsedModuleDecls blockDecl modVarTable = 
+    let
+        declList = traverseDSeq blockDecl []
+    in
+        restoreUsedModuleDecls' declList modVarTable                                     
+
+traverseDSeq fseq acc = case fseq of
+    NullDecl _ _ -> acc
+    (DSeq _ f1 f2) -> acc++(traverseDSeq f1 [])++(traverseDSeq f2 [])
+    f -> acc ++ [f]    
 {- 
 produceCodeBlock allKernelArgsMap emptyArgumentTranslation progWithFilename nonGeneratedBlockCode_indent originalLines maybeOclInitCall block   
 -}
 
-produceCodeBlock :: KernelArgsIndexMap -> ArgumentTranslation -> (Program Anno, String) -> String -> [String] -> Maybe (Fortran Anno) -> Block Anno -> String
-produceCodeBlock allKernelArgsMap argTranslation prog tabs originalLines maybePrefix (Block anno useBlock imp src decl fort)     
+produceCodeBlock :: KernelArgsIndexMap -> ArgumentTranslation -> (Program Anno, String) -> ModuleVarsTable -> String -> [String] -> String -> String -> Maybe (Fortran Anno) -> Block Anno -> String
+produceCodeBlock allKernelArgsMap argTranslation prog modVarTable tabs originalLines maybeImplicitNone extraDecls maybePrefix (Block anno useBlock imp src decl fort)     
                                                                         |    length originalLines == 0 =  produceCode_fortran prog tabs originalLines fort
-{-
-                                                                                  bufferDeclarationStatements ++ "\n"
-                                                                            ++    statePtrDeclStr ++ "\n"
-                                                                            ++    sizeDeclarations ++ "\n"
-                                                                            ++    prefixString
-                                                                            ++    shapeStatements ++ "\n"
-                                                                            ++    loadBufferStatements ++ "\n"
-                                                                            ++     produceCode_fortran prog tabs originalLines fort
--}                                                                            
                                                                         |    nonGeneratedHeader_ls < 1 = error "produceCodeBlock: nonGeneratedHeader_ls < 1"
---                                                                        |    nonGeneratedFooter_ls < 1 = error "produceCodeBlock: nonGeneratedFooter_ls < 1"
-                                                                        |    otherwise =                                                                                 
-                                                                                  nonGeneratedHeaderCode
+                                                                        |    otherwise =                                                                                
+                                                                                  maybeRestoredUseModuleDecls ++ "\n"
+                                                                            ++    maybeImplicitNone ++ "\n"
+                                                                            ++    "! otherStatements\n"
+                                                                            ++    (unlines otherStatements) ++"\n"
+                                                                            ++    "! remainingDecls\n"
+                                                                            ++    remainingDecls ++"\n"
+                                                                            ++    tabs ++ "! Extra declarations\n"
+                                                                            ++    extraDecls
                                                                             ++    tabs ++ "! Buffer declarations\n"
                                                                             ++    bufferDeclarationStatements ++ "\n"
                                                                             ++    statePtrDeclStr ++ "\n"
@@ -282,17 +313,32 @@ produceCodeBlock allKernelArgsMap argTranslation prog tabs originalLines maybePr
             fortranSrc = srcSpan fort
             ((SrcLoc _ fortran_ls _), _) = warning fortranSrc (show (src,fortranSrc))
             -- src is the SrcSpan of the *original* ast
-            (nonGeneratedHeaderSrc, nonGeneratedFooterSrc) = getSrcSpanNonIntersection src fortranSrc
+            (nonGeneratedHeaderSrcSpan, nonGeneratedFooterSrcSpan) = getSrcSpanNonIntersection src fortranSrc
 
-            ((SrcLoc _ nonGeneratedHeader_ls _), (SrcLoc _ nonGeneratedHeader_le _)) = nonGeneratedHeaderSrc
---            nonGeneratedHeaderCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedHeader_ls..nonGeneratedHeader_le-1]
-            nonGeneratedHeaderCode = extractOriginalCode_Offset1 originalLines nonGeneratedHeaderSrc
-            
-            ((SrcLoc _ nonGeneratedFooter_ls _), (SrcLoc _ nonGeneratedFooter_le _)) = nonGeneratedFooterSrc
---            nonGeneratedFooterCode = foldl (\accum item -> accum ++ (originalLines!!(item-1)) ++ "\n") "" [nonGeneratedFooter_ls+1..nonGeneratedFooter_le-1]
+            ((SrcLoc _ nonGeneratedHeader_ls _), (SrcLoc _ nonGeneratedHeader_le _)) = nonGeneratedHeaderSrcSpan
+--            BOOM! Bring in line with code on lines 106-136      
+            nonGeneratedHeaderCode' = extractOriginalCode_Offset1 originalLines nonGeneratedHeaderSrcSpan
+            -- WV NOTE to do this correctly we need to label each line
+            nonGeneratedHeaderCodeStatements = 
+                let
+                    code_lines = lines nonGeneratedHeaderCode'
+--                    labeled_code_lines = zip code_lines [1 .. length code_lines]
+                    (decls,rest) = partition findDeclLine code_lines 
+                    parsedDecls = map context_parse  $ decls
+                in
+                    (parsedDecls, rest)
+            (parsedDecls,otherStatements) = nonGeneratedHeaderCodeStatements
+            (remainingDecls,maybeRestoredUseModuleDecls) = restoreUsedModuleDecls' parsedDecls modVarTable
+            nonGeneratedHeaderCode = 
+                    maybeRestoredUseModuleDecls ++ "\n"
+                ++ "! otherStatements\n"
+                ++ (unlines otherStatements) ++"\n"
+                ++ "! remainingDecls\n"
+                ++ remainingDecls ++"\n"
+            ((SrcLoc _ nonGeneratedFooter_ls _), (SrcLoc _ nonGeneratedFooter_le _)) = nonGeneratedFooterSrcSpan
             nonGeneratedFooterCode
                 | nonGeneratedFooter_ls < 1 = "" -- "! nonGeneratedFooterSrc: "++(show nonGeneratedFooterSrc)
-                | otherwise = extractOriginalCode_Offset (1,-1) originalLines nonGeneratedFooterSrc
+                | otherwise = extractOriginalCode_Offset (1,-1) originalLines nonGeneratedFooterSrcSpan
 
             nonGeneratedBlockCode_indent
                 | fortran_ls < 0 || length originalLines < fortran_ls = "      " -- 
@@ -1272,7 +1318,7 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLMap anno src r w l il fortr
 synthesiseKernelCall (progAst, filename) tabs (OpenCLReduce anno src r w l il rv fortran) = (commentSeparator ("BEGIN " ++ kernelName)) -- WV20170426
                                                             ++ tabs ++ "oclGlobalRange = " ++ outputExprFormatting reductionWorkItemsExpr ++ "\n"
                                                             ++ tabs ++ "oclLocalRange = " ++ outputExprFormatting nthVar ++ "\n"
-                                                            ++ tabs ++ "ngroups = " ++ outputExprFormatting nunitsVar ++ "\n"
+-- UNUSED AND UNDECLARED!                                                            ++ tabs ++ "ngroups = " ++ outputExprFormatting nunitsVar ++ "\n"
                                                             ++ tabs ++ (varNameStr statePtrVarName) ++ "(1) = " ++ stateName ++ "\n"
                                                             ++ tabs ++ bufferWrites ++ "\n\n"
                                                             ++ tabs ++ "call runOcl(oclGlobalRange,oclLocalRange,exectime)\n"

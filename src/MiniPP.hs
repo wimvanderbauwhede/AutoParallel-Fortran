@@ -63,12 +63,12 @@ showArgName  (ASeq _ a1 a2) = (showArgName a1)++", "++(showArgName a2)
 
 miniPPP (Main _ _ subname args block ps) = "! Generated code\n"++"program "++(showSubName subname)++" "++(showArg args)++"\n"++(miniPPB block) ++ (unlines (map miniPPP ps))++"\nend program "++(showSubName subname)++"\n"    -- TODO
 miniPPP progunit = show progunit 
-
+-- Decl     p = Decl           p SrcSpan [(Expr p, Expr p, Maybe Int)] (Type p)      -- declaration stmt
 miniPPB (Block _ useblock implicit _ decl fortran) = (miniPPD decl) ++"\n" ++ (miniPPF fortran) -- TODO
 
 miniPPAttr attr = case attr of
     Parameter _ -> "parameter"
-    Dimension _ dim_exp_tups -> "dimension("++ (intercalate "," (map (\(b,e)->(miniPP b)++":"++(miniPP e)) dim_exp_tups )) ++")" -- [(Expr p, Expr p)]
+    Dimension _ dim_exp_tups -> "dimension("++ (intercalate "," (map (\(b,e)-> (if (miniPP b == "") then "" else ((miniPP b) ++":"))++(miniPP e)) dim_exp_tups )) ++")" -- [(Expr p, Expr p)]
     Intent _ intent_attr -> "intent(" ++ (case   intent_attr of
             In _ -> "in"
             Out _ -> "out"

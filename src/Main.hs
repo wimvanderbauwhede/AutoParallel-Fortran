@@ -83,10 +83,10 @@ main = do
 --    parsedPrograms <- mapM (parseFile cppDFlags fixedForm) filenames
     parsedPrograms_stashes <- mapM (parseFile cppDFlags cppXFlags fixedForm) filenames
     let
-        (parsedPrograms,stashes) = unzip parsedPrograms_stashes
+        (parsedPrograms,stashes,moduleVarTables) = unzip3 parsedPrograms_stashes
 --    mapM (putStr . show) stashes
 --    parsedMain <- parseFile cppDFlags fixedForm mainFilename
-    (parsedMain,mainStash) <- parseFile cppDFlags cppXFlags fixedForm mainFilename
+    (parsedMain,mainStash,mainModuleVarTable) <- parseFile cppDFlags cppXFlags fixedForm mainFilename
 --    putStr $ show mainStash
     -- < STEP 3 : Construct subroutine AST lists>
     let parsedSubroutines' = constructSubroutineTable (zip parsedPrograms filenames)
@@ -132,7 +132,7 @@ main = do
     putStrLn $ compilerName ++ ": Synthesising OpenCL files"
     -- WV: added parsedSubroutines
     -- WV: This is a bit strange, to deal with the kernel and host-side code in one step
-    emit outDirectory cppDFlags cppXFlags plat fixedForm fileCoordinated_parallelisedList fileCoordinated_bufferOptimisedPrograms argTranslations (newMainAst, mainFilename) [] [] parsedSubroutines (mainStash,stashes) -- < STEP 8 > 
+    emit outDirectory cppDFlags cppXFlags plat fixedForm fileCoordinated_parallelisedList fileCoordinated_bufferOptimisedPrograms argTranslations (newMainAst, mainFilename) [] [] parsedSubroutines (mainStash,stashes) (mainModuleVarTable,moduleVarTables)-- < STEP 8 > 
 
 filenameFlag = "-modules"
 outDirectoryFlag = "-out"
