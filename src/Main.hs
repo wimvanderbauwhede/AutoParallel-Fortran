@@ -61,6 +61,9 @@ main = do
     let ioWriteSubroutines = case DMap.lookup ioWriteRoutineFlag argMap of
                         Just subs -> subs
                         Nothing -> usageError
+    let ioReadSubroutines = case DMap.lookup ioReadRoutineFlag argMap of
+                        Just subs -> subs
+                        Nothing -> usageError
     let mainFilename = case DMap.lookup mainFileFlag argMap of
                         Just filenames -> head filenames
                         Nothing -> usageError
@@ -113,7 +116,7 @@ main = do
     -- WV: TODO: put these into SubRec.subCalledSubs.ArgMap or at least in SubRec.subCalledSubsArgMaps
 
     -- WV: This is host-side
-    let (optimisedBufferTransfersSubroutines, newMainAst) = optimiseBufferTransfers ioWriteSubroutines combinedKernelSubroutines argTranslations parsedMain 
+    let (optimisedBufferTransfersSubroutines, newMainAst) = optimiseBufferTransfers (ioWriteSubroutines,ioReadSubroutines) combinedKernelSubroutines argTranslations parsedMain 
     
     --    < STEP 7b : > 
     --    WV: this is kernel-side

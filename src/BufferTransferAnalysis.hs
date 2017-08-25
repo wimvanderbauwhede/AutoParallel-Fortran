@@ -35,8 +35,8 @@ import qualified Data.Map as DMap
 --        -    Take the new kernels and determine when the 'initialisation' subroutine call can be perfomed. This is done with 'findEarliestInitialisationSrcSpan'
 --        -    Finally, replace the kernels in the original subroutine table with the new kernels that use far less read/write arguments. Return the new
 --            subroutine table along with the SrcSpans that indicate where initialisation should happen and where the OpenCL portion of the main ends.
-optimiseBufferTransfers :: [String] -> SubroutineTable -> SubroutineArgumentTranslationMap -> (Program Anno,[String]) -> (SubroutineTable, Program Anno)
-optimiseBufferTransfers ioWriteSubroutines subTable argTranslations (mainAst,mainOrigLines) = -- error ("kernels_optimisedBetween: " ++ (show kernels_optimisedBetween))
+optimiseBufferTransfers :: ([String],[String]) -> SubroutineTable -> SubroutineArgumentTranslationMap -> (Program Anno,[String]) -> (SubroutineTable, Program Anno)
+optimiseBufferTransfers (ioWriteSubroutines,ioReadSubroutines) subTable argTranslations (mainAst,mainOrigLines) = -- error ("kernels_optimisedBetween: " ++ (show kernels_optimisedBetween))
                                                             (newSubTable, newMainAst_withReadsWritesIO) -- warning newMainAst_withReadsWrites (miniPPP (head newMainAst_withReadsWrites)))
         where
             -- WV: this is an inliner but only works if all args are vars
@@ -46,6 +46,8 @@ optimiseBufferTransfers ioWriteSubroutines subTable argTranslations (mainAst,mai
             allArguments = nub $ foldl (++) [] $ map (getArguments . (\(_,sub_rec) -> [subAst sub_rec])) (DMap.toList subTable)
             allWrittenArgs :: [VarName Anno]
             allWrittenArgs = nub $ foldl (++) [] $ map ( getWrittenArgs . (\(_,sub_rec) -> subAst sub_rec)) (DMap.toList subTable)
+            allReadArgs :: [VarName Anno]
+            allReadArgs = nub $ foldl (++) [] $ map ( getReadArgs . (\(_,sub_rec) -> subAst sub_rec)) (DMap.toList subTable)
 
             -- WV: What this does is removing read/write pairs between a kernel and subsequent kernels
             optimisedFlattenedAst = optimseBufferTransfers_program flattenedVarAccessAnalysis flattenedAst
@@ -85,7 +87,8 @@ optimiseBufferTransfers ioWriteSubroutines subTable argTranslations (mainAst,mai
                 (\fstmtlst_ (varSrcPairs,writes,after) -> insertBufferWV writes after varSrcPairs fstmtlst_)
                 (getFStmtLstFromMainAst mainAst) 
                 [(bufferReadsAfter,False,True),(bufferReadsBefore,False,False),(bufferWritesAfter,True,True),(bufferWritesBefore,True,False)]
-            newMainAst_withReadsWritesIO =  insertIOBuffersBeforeIOCalls allWrittenArgs ioWriteSubroutines newMainAst_withReadsWrites 
+            newMainAst_withReadsWritesIO' =  insertIOBuffersBeforeIOWriteCalls allWrittenArgs ioWriteSubroutines newMainAst_withReadsWrites 
+            newMainAst_withReadsWritesIO =  insertIOBuffersAfterIOReadCalls allReadArgs ioReadSubroutines newMainAst_withReadsWritesIO' 
 -- !            TODO:
 -- !            generate the code for the buffer reads as an FStmt list and modify updated_fstmtlst
 -- ! Basically 
@@ -163,15 +166,52 @@ insertBufferWV writes after varSrcPairs fstmtlst = let
         updated_fstmtlst 
 
 
-insertIOBufferWV :: [VarName Anno] -> Fortran Anno -> Fortran Anno
-insertIOBufferWV vars fstmt = let
+insertIOBufferReadWV :: [VarName Anno] -> Fortran Anno -> Fortran Anno
+insertIOBufferReadWV vars fstmt = let
     ocl_buf_fstmts = map (OpenCLBufferRead nullAnno nullSrcSpan ) vars
     flst = ocl_buf_fstmts ++ [fstmt]
     fortranFSeq = transformFortranListIntoFSeq flst
   in
         fortranFSeq 
 
-insertIOBuffersBeforeIOCalls allWrittenArgs ioWriteSubroutines ast = 
+insertIOBufferWriteWV :: [VarName Anno] -> Fortran Anno -> Fortran Anno
+insertIOBufferWriteWV vars fstmt = let
+    ocl_buf_fstmts = map (OpenCLBufferWrite nullAnno nullSrcSpan ) vars
+    flst = fstmt:ocl_buf_fstmts 
+    fortranFSeq = transformFortranListIntoFSeq flst
+  in
+        fortranFSeq 
+
+insertIOBuffersAfterIOReadCalls allReadArgs ioReadSubroutines ast = 
+    let
+        declarations = everything (++) (mkQ [] getDeclaredVarNames) ast
+        main_progunit = head ast
+        Main m1 m2 m3 m4 main_block m5 = main_progunit
+        Block b1 b2 b3 b4 b5 start_fseq = main_block  
+        new_start_fseq = everywhere (mkT (insertIOBufferAfterIOCall allReadArgs ioReadSubroutines declarations)) start_fseq
+    in        
+        [Main m1 m2 m3 m4 (Block b1 b2 b3 b4 b5 new_start_fseq) m5]    
+
+insertIOBufferAfterIOCall allReadArgs ioReadSubroutines declarations fstmt@(Call p srcSpan callExpr argList) = 
+    let
+         subroutineName = if extractVarNames callExpr == [] 
+            then (error "insertIOBufferAfterIOCall: callExpr\n" ++ (show callExpr))
+            else varNameStr (head (extractVarNames callExpr))
+         extractedExprs = everything (++) (mkQ [] extractExpr_list) argList
+         extractedOperands = foldl (\accum item -> accum ++ extractOperands item) [] extractedExprs
+         --varNames :: [VarName Anno String]
+         varNames = foldl (collectVarNames_foldl declarations) [] extractedOperands
+         writtenVarNames = filter (\var -> var `elem` allReadArgs) varNames
+    in
+        if subroutineName `elem` ioReadSubroutines 
+            then insertIOBufferWriteWV writtenVarNames fstmt 
+            else fstmt
+
+insertIOBufferAfterIOCall allReadArgs ioReadSubroutines declarations fstmt = fstmt
+
+
+
+insertIOBuffersBeforeIOWriteCalls allWrittenArgs ioWriteSubroutines ast = 
     let
         declarations = everything (++) (mkQ [] getDeclaredVarNames) ast
         main_progunit = head ast
@@ -184,7 +224,7 @@ insertIOBuffersBeforeIOCalls allWrittenArgs ioWriteSubroutines ast =
 insertIOBufferBeforeIOCall allWrittenArgs ioWriteSubroutines declarations fstmt@(Call p srcSpan callExpr argList) = 
     let
          subroutineName = if extractVarNames callExpr == [] 
-            then (error "flattenSubroutineCall: callExpr\n" ++ (show callExpr))
+            then (error "insertIOBufferBeforeIOCall: callExpr\n" ++ (show callExpr))
             else varNameStr (head (extractVarNames callExpr))
          extractedExprs = everything (++) (mkQ [] extractExpr_list) argList
          extractedOperands = foldl (\accum item -> accum ++ extractOperands item) [] extractedExprs
@@ -193,7 +233,7 @@ insertIOBufferBeforeIOCall allWrittenArgs ioWriteSubroutines declarations fstmt@
          writtenVarNames = filter (\var -> var `elem` allWrittenArgs) varNames
     in
         if subroutineName `elem` ioWriteSubroutines 
-            then insertIOBufferWV writtenVarNames fstmt 
+            then insertIOBufferReadWV writtenVarNames fstmt 
             else fstmt
 
 insertIOBufferBeforeIOCall allWrittenArgs ioWriteSubroutines declarations fstmt = fstmt
