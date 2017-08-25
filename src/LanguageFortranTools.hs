@@ -250,6 +250,14 @@ extractVarNames (Var _ _ lst) = let
         vs'' -- if length vs'' == 0 then [VarName nullAnno "DUMMY"] else vs''
 extractVarNames _ = []
 
+extractMaybeVarNames :: Expr Anno -> Maybe [VarName Anno]
+extractMaybeVarNames (Var _ _ lst) = let
+        vs' = filter (\((VarName _ v),args) -> not (v `elem` f95IntrinsicFunctions && length args > 0) ) lst
+        vs'' = map (\(x, _) -> x) vs'
+    in
+        Just vs'' -- if length vs'' == 0 then [VarName nullAnno "DUMMY"] else vs''
+extractMaybeVarNames _ = Nothing
+
 extractAllVarNames ::(Data (a Anno)) => a Anno -> [VarName Anno]
 -- extractAllVarNames :: Expr Anno -> [VarName Anno]
 extractAllVarNames = everything (++) (mkQ [] (extractVarNames))

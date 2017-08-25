@@ -10,13 +10,13 @@ where
 
 import Data.Generics (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere, everywhere')
 import Data.Maybe                     (fromMaybe)
-import Data.List (nub, foldl')
+import Data.List (nub, foldl', partition)
 import Language.Fortran
 import Warning (warning)
 import MiniPP 
 
 import VarAccessAnalysis             (VarAccessAnalysis, analyseAllVarAccess, getAccessLocationsBeforeSrcSpan, getAccessLocationsInsideSrcSpan, getAccessesBetweenSrcSpans, 
-                                    getAccessesBetweenSrcSpansIgnore, getAccessLocationsAfterSrcSpan, getArguments)
+                                    getAccessesBetweenSrcSpansIgnore, getAccessLocationsAfterSrcSpan, getArguments, collectVarNames , getDeclaredVarNames)
 import LanguageFortranTools 
 import SubroutineTable                 (SubroutineTable, SubRec(..), SubroutineArgumentTranslationMap, ArgumentTranslation, replaceKernels_foldl, subroutineTable_ast, extractAllCalls, 
                                     extractCalls)
@@ -35,56 +35,80 @@ import qualified Data.Map as DMap
 --        -    Take the new kernels and determine when the 'initialisation' subroutine call can be perfomed. This is done with 'findEarliestInitialisationSrcSpan'
 --        -    Finally, replace the kernels in the original subroutine table with the new kernels that use far less read/write arguments. Return the new
 --            subroutine table along with the SrcSpans that indicate where initialisation should happen and where the OpenCL portion of the main ends.
-optimiseBufferTransfers :: SubroutineTable -> SubroutineArgumentTranslationMap -> (Program Anno,[String]) -> (SubroutineTable, Program Anno)
-optimiseBufferTransfers subTable argTranslations (mainAst,mainOrigLines) = -- error ("kernels_optimisedBetween: " ++ (show kernels_optimisedBetween))
-                                                            (newSubTable, newMainAst_withReadsWrites) -- warning newMainAst_withReadsWrites (miniPPP (head newMainAst_withReadsWrites)))
+optimiseBufferTransfers :: [String] -> SubroutineTable -> SubroutineArgumentTranslationMap -> (Program Anno,[String]) -> (SubroutineTable, Program Anno)
+optimiseBufferTransfers ioWriteSubroutines subTable argTranslations (mainAst,mainOrigLines) = -- error ("kernels_optimisedBetween: " ++ (show kernels_optimisedBetween))
+                                                            (newSubTable, newMainAst_withReadsWritesIO) -- warning newMainAst_withReadsWrites (miniPPP (head newMainAst_withReadsWrites)))
         where
+            -- WV: this is an inliner but only works if all args are vars
             flattenedAst = flattenSubroutineAppearances subTable argTranslations mainAst
-            flattenedVarAccessAnalysis = analyseAllVarAccess flattenedAst
+            flattenedVarAccessAnalysis = analyseAllVarAccess [] flattenedAst
             flattenedVarAccessAnalysis' = flattenedVarAccessAnalysis -- warning flattenedVarAccessAnalysis (show flattenedVarAccessAnalysis)
             allArguments = nub $ foldl (++) [] $ map (getArguments . (\(_,sub_rec) -> [subAst sub_rec])) (DMap.toList subTable)
             allWrittenArgs :: [VarName Anno]
             allWrittenArgs = nub $ foldl (++) [] $ map ( getWrittenArgs . (\(_,sub_rec) -> subAst sub_rec)) (DMap.toList subTable)
-            -- now I need the union                
+
+            -- WV: What this does is removing read/write pairs between a kernel and subsequent kernels
             optimisedFlattenedAst = optimseBufferTransfers_program flattenedVarAccessAnalysis flattenedAst
-            -- WV: up to here, the press kernel still has nrd as an argument to be written
             -- WV: The next operation is only analysis, no transformation
-            varAccessAnalysis = analyseAllVarAccess mainAst
-            kernels_optimisedBetween = extractKernels optimisedFlattenedAst
-            
+            varAccessAnalysis = analyseAllVarAccess ioWriteSubroutines mainAst
+
+            -- WV: So this is the list of buffers that need to be read back
+            args_in_io_sub :: [(VarName Anno,([SrcSpan],[SrcSpan]) )] -- whereas what we need is just SrcSpan
+            args_in_io_sub = filter (\(k,v) -> k `elem` allWrittenArgs) (DMap.toList $ (\([_,v],_,_,_) -> v) varAccessAnalysis)
+            ioBufferReads = map (\(v,(s1s,s2s)) -> (v, head s1s)) args_in_io_sub
+            ioWriteVars = map fst args_in_io_sub
+            varAccessAnalysis' = varAccessAnalysis -- warning varAccessAnalysis ( "IO ROUTINE ARGS:"++(showVarLst $ map fst args_in_io_sub))
+            kernels_optimisedBetween = extractKernels optimisedFlattenedAst            
             (kernelStartSrc, kernelEndSrc) = generateKernelCallSrcRange subTable mainAst
-
             kernelRangeSrc = (fst kernelStartSrc, snd kernelEndSrc)
+            -- WV: This function attempts to remove redundant writes from Init and reads at the end
             (kernels_withoutInitOrTearDown, initWrites, varsOnDeviceAfterOpenCL) = stripInitAndTearDown flattenedVarAccessAnalysis' kernelRangeSrc kernels_optimisedBetween
-            -- At this point, initWrites does contain p2 but does not contain rhs
             -- Any Sub arg that is a kernel write arg : S `intersection` KW
-            -- And then 
             initWrites' = initWrites `listUnion` (allArguments `listIntersection` allWrittenArgs)
-            -- initWrites' = initWrites --  warning initWrites (show (initWrites,allArguments,allWrittenArgs))
 
-            readConsiderationSrc = kernelRangeSrc
-            (bufferWritesBefore, bufferWritesAfter) = generateBufferInitPositions initWrites' mainAst kernelStartSrc kernelEndSrc varAccessAnalysis
+            (bufferWritesBefore, bufferWritesAfter) = generateBufferInitPositions initWrites' mainAst kernelStartSrc kernelEndSrc varAccessAnalysis'
             (bufferReadsBefore, bufferReadsAfter) = generateBufferReadPositions varsOnDeviceAfterOpenCL mainAst kernelStartSrc kernelEndSrc varAccessAnalysis
-
-            newMainAst_withReads = insertBufferReadsBefore bufferReadsBefore (insertBufferReadsAfter bufferReadsAfter mainAst)
-            -- so the call to insertBufferWritesAfter eats p2 ...
-            -- warning here prints out p2
-            --newMainAst_withReadsWrites = insertBufferWritesBefore bufferWritesBefore  (insertBufferWritesAfterWV' bufferWritesAfter newMainAst_withReads)
+            -- so a possible way to handle ioWrites is to add the variables to read to the bufferReadsAfter list
+            -- I should now have access to the variables from IO routines
+            --
 
             oldKernels = extractKernels flattenedAst
             kernelPairs = zip oldKernels kernels_withoutInitOrTearDown
-            matches = map (\(a, b) -> a == b) kernelPairs
-            keys = (DMap.keys subTable)
+            -- matches = map (\(a, b) -> a == b) kernelPairs
+            -- keys = (DMap.keys subTable)
 
             newSubTable = foldl (replaceKernels_foldl kernelPairs) subTable (DMap.keys subTable)
-
+            newMainAst_withReadsWrites = updateFStmtLstInMainAst mainAst updated_fstmtlst
+--            updated_fstmtlst' = map (\stmt -> if isCall stmt then (warning stmt ("CALL "++(miniPPF (insertIOBufferWV ioWriteVars stmt)) )) else (warning stmt ("NOT CALL "++(miniPPF stmt) )) ) updated_fstmtlst
+            -- What we need to do is find all calls to subs in the ioWrite list and replace them by an FSeq of buffer reads and the call
             updated_fstmtlst = foldl' 
-                (\fstmtlst_ (varSrcPairs,writes,after) -> insertBufferWV writes after varSrcPairs fstmtlst_) 
+                (\fstmtlst_ (varSrcPairs,writes,after) -> insertBufferWV writes after varSrcPairs fstmtlst_)
                 (getFStmtLstFromMainAst mainAst) 
                 [(bufferReadsAfter,False,True),(bufferReadsBefore,False,False),(bufferWritesAfter,True,True),(bufferWritesBefore,True,False)]
-            newMainAst_withReadsWrites = updateFStmtLstInMainAst mainAst updated_fstmtlst
+            newMainAst_withReadsWritesIO =  insertIOBuffersBeforeIOCalls allWrittenArgs ioWriteSubroutines newMainAst_withReadsWrites 
+-- !            TODO:
+-- !            generate the code for the buffer reads as an FStmt list and modify updated_fstmtlst
+-- ! Basically 
                             
+isCall :: Fortran p -> Bool
+isCall (Call _ _ _ _) = True
+isCall _ = False
 
+-- WV20170820 A hack to insert buffer reads before IO Write subroutines. 
+-- The more-or-less proper way to do this I think is take the AST, and figure out where the kernel routine calls end and IO routines start.
+-- So we split the main loop into zones: Kernel | IOWrite | Kernel | IOWrite  and maybe also IORead and even IORW. 
+-- Basically, the way I would do this is by looking for a sequence of subroutine calls consisting of the union of the
+-- kernel subroutines (subroutineNames) and the ioRead/Write/RWSubroutines from command line. So we find the first call to a sub in this set,
+-- then keep going until we find something that is not a sub call.
+-- then we prune at the back any calls  not in the set
+-- If there are any calls in between that are not in the set they are simply ignored for this purpose
+-- Then we add oclRead calls for every buffer in the first IOWrite routine before the call, we keep track, and add remaining calls as we proceed
+-- For IORead calls we add oclWrite calls after the call. For IORW it would be a combination as we'd need to know which buffer is R and which W or
+-- we simply assume that they are all RW
+-- So the key question is of course, which args are buffers; and also, what kind of sub is it?
+-- So given a sub, find if it is R/W/RW. Otherwise we do nothing.
+-- Then get its args from the AST and check which ones are buffers using the table (e.g. kernelArgs)
+-- 
 -- WV20170405 New approach to OpenCL buffer read/write insertion
 -- And of course this will now work for bufferWritesBefore etc as well
 insertBufferWritesAfterWV' = insertBufferWV True True
@@ -132,13 +156,55 @@ insertBufferWV writes after varSrcPairs fstmtlst = let
     fortranFSeqSrcPairs :: [(Fortran Anno, SrcSpan)]
     fortranFSeqSrcPairs = map (\(flst,srcspan) -> (transformFortranListIntoFSeq flst, srcspan)) groupedFortranSrcPairs
     -- These are the matching lines so what I need to do is splice in the groupedFortranSrcPairs
-    matching_lines = foldl' (++) [] $ map (\(fseq,srcspan) -> filter (\fstmt -> (sameLine srcspan (getSrcSpan fstmt))) fstmtlst) fortranFSeqSrcPairs 
+    -- matching_lines = foldl' (++) [] $ map (\(fseq,srcspan) -> filter (\fstmt -> (sameLine srcspan (getSrcSpan fstmt))) fstmtlst) fortranFSeqSrcPairs 
     updated_fstmtlst = foldl' (updateFStmtLst after) fstmtlst groupedFortranSrcPairs
     -- Finally we must turn updated_fstmtlst into an FSeq and wrap it into a Program
   in
         updated_fstmtlst 
 
 
+insertIOBufferWV :: [VarName Anno] -> Fortran Anno -> Fortran Anno
+insertIOBufferWV vars fstmt = let
+    ocl_buf_fstmts = map (OpenCLBufferRead nullAnno nullSrcSpan ) vars
+    flst = ocl_buf_fstmts ++ [fstmt]
+    fortranFSeq = transformFortranListIntoFSeq flst
+  in
+        fortranFSeq 
+
+insertIOBuffersBeforeIOCalls allWrittenArgs ioWriteSubroutines ast = 
+    let
+        declarations = everything (++) (mkQ [] getDeclaredVarNames) ast
+        main_progunit = head ast
+        Main m1 m2 m3 m4 main_block m5 = main_progunit
+        Block b1 b2 b3 b4 b5 start_fseq = main_block  
+        new_start_fseq = everywhere (mkT (insertIOBufferBeforeIOCall allWrittenArgs ioWriteSubroutines declarations)) start_fseq
+    in        
+        [Main m1 m2 m3 m4 (Block b1 b2 b3 b4 b5 new_start_fseq) m5]    
+
+insertIOBufferBeforeIOCall allWrittenArgs ioWriteSubroutines declarations fstmt@(Call p srcSpan callExpr argList) = 
+    let
+         subroutineName = if extractVarNames callExpr == [] 
+            then (error "flattenSubroutineCall: callExpr\n" ++ (show callExpr))
+            else varNameStr (head (extractVarNames callExpr))
+         extractedExprs = everything (++) (mkQ [] extractExpr_list) argList
+         extractedOperands = foldl (\accum item -> accum ++ extractOperands item) [] extractedExprs
+         --varNames :: [VarName Anno String]
+         varNames = foldl (collectVarNames_foldl declarations) [] extractedOperands
+         writtenVarNames = filter (\var -> var `elem` allWrittenArgs) varNames
+    in
+        if subroutineName `elem` ioWriteSubroutines 
+            then insertIOBufferWV writtenVarNames fstmt 
+            else fstmt
+
+insertIOBufferBeforeIOCall allWrittenArgs ioWriteSubroutines declarations fstmt = fstmt
+
+collectVarNames_foldl :: [VarName Anno] -> [VarName Anno] -> Expr Anno -> [VarName Anno]
+collectVarNames_foldl declarations accum item = accum ++ collectVarNames declarations item            
+
+
+--getDeclaredVarNames :: Decl Anno -> [VarName Anno]
+--getDeclaredVarNames (Decl _ _ lst _) = foldl (\accum (expr1, _, _) -> accum ++ extractVarNames expr1) [] lst
+--getDeclaredVarNames decl = []
 
 
 getFStmtLstFromMainAst ast = let
@@ -234,8 +300,7 @@ generateBufferInitPositions initWrites mainAst kernelStartSrc kernelEndSrc varAc
 --    A similar approach to the function above, except we are looking for locations where a variable is read rather than written to. The consideration range
 --    is after the kernel calls (including any loops that the kernel calls appear in) and any read that happens before the kernel calls in a loop mean that a
 --    buffer read MUST happen directly after the kernel calls.
-
---    (Following functions are used to consider for loops when placing buffer reads and writes in the main)
+--    (Following functions are used to consider for-loops when placing buffer reads and writes in the main)
 generateBufferReadPositions :: [VarName Anno] -> Program Anno -> SrcSpan -> SrcSpan -> VarAccessAnalysis -> ([(VarName Anno, SrcSpan)], [(VarName Anno, SrcSpan)])
 generateBufferReadPositions finalReads mainAst kernelStartSrc kernelEndSrc varAccessAnalysis = (bufferReadsBeforeSrc, bufferReadsAfterSrc)
         where
@@ -250,8 +315,7 @@ generateBufferReadPositions finalReads mainAst kernelStartSrc kernelEndSrc varAc
             bufferReadPositionsExcludingNull = filter (\(var, src) -> src /= nullSrcSpan) bufferReadPositions
             bufferReadPositionsKernelStart = map (\(var, src) -> if checkSrcLocBefore (fst src) (fst kernelEndSrc) then (var, kernelEndSrc) else (var, src)) bufferReadPositionsExcludingNull
 
-            bufferReadsBeforeSrc = filter (\(var, src) -> src == kernelEndSrc) bufferReadPositionsExcludingNull
-            bufferReadsAfterSrc = filter (\(var, src) -> src /= kernelEndSrc) bufferReadPositionsExcludingNull
+            (bufferReadsBeforeSrc,bufferReadsAfterSrc) = partition (\(var, src) -> src == kernelEndSrc) bufferReadPositionsExcludingNull
 
 --    Traverse the ast looking for a target location. If the target location is found to be within a loop, return the location of the end of the loop,
 --    otherwise return the first location that appears at the target location.
@@ -308,31 +372,42 @@ flattenSubroutineAppearances subTable argTransTable mainAst = updated
 --            in the body of the subroutine can be updated.
 --        -    Call 'flattenSubroutineCall'
 --            +    Retrieve the subroutine body
---            +    Adjust line/location information in the retreived body code so that it fits into the new (usually the main) AST.
+--            +    Adjust line/location information in the retrieved body code so that it fits into the new (usually the main) AST.
 --            +    Return the subroutine body
 --        -    Return the subroutine body
+--       
 flattenSubroutineCall_container :: SubroutineTable -> SubroutineArgumentTranslationMap -> Fortran Anno -> Fortran Anno
-flattenSubroutineCall_container subTable argTransTable containerSeg     |     containedCalls /= [] = containerWithFlattenedSub
-                                                                        |    otherwise = containerSeg                                                        
+flattenSubroutineCall_container subTable argTransTable containerSeg     
+    |     containedCall /= [] = containerWithFlattenedSub                                                                        
+    |    otherwise = containerSeg                                                        
         where
-            containedCalls = foldl (++) [] (gmapQ (mkQ [] extractCalls) containerSeg)
-            (Call _ _ callExpr _) = if (length containedCalls > 1) then error "flattenSubroutineCall_container: multiple contained calls unsupported" else head containedCalls
-
+            -- Get the call statement
+            containedCall = foldl (++) [] (gmapQ (mkQ [] extractCalls) containerSeg)
+            (Call _ _ callExpr _) = if (length containedCall > 1) then error "flattenSubroutineCall_container: multiple contained calls unsupported" else head containedCall
+            -- get the subroutine name
+            subroutineName = if extractVarNames callExpr == [] 
+                then (error "flattenSubroutineCall: callExpr\n" ++ (show callExpr))  
+                else varNameStr (head (extractVarNames callExpr))
+            -- get the source span of the subroutine iff it is in the table, so only "known" subs
             subroutineSrc = case DMap.lookup subroutineName subTable of
                                         Nothing -> nullSrcSpan
                                         Just subroutine -> srcSpan (subroutineTable_ast subroutine)
             subroutineLineSize = srcSpanLineCount subroutineSrc
+            -- adapt the src spans to account for the inlined code
             containerWithScrShifts = gmapT (mkT (ignoreCall_T (shiftSrcSpanLineGlobal subroutineLineSize))) containerSeg
-
-            subroutineName = if extractVarNames callExpr == [] then (error "flattenSubroutineCall: callExpr\n" ++ (show callExpr))  else varNameStr (head (extractVarNames callExpr))
+            --  for inlining we need to replace the signature arguments with the call arguments
+            --  first get the argument translation table
             subroutineArgTrans = DMap.findWithDefault (error "flattenSubroutineCall_container: subroutineArgTrans") subroutineName argTransTable
+            -- now use this to acutally "flatten" the subroutine
             containerWithFlattenedSub = gmapT (mkT (flattenSubroutineCall subTable subroutineArgTrans)) containerWithScrShifts
 
 flattenSubroutineCall :: SubroutineTable -> ArgumentTranslation -> Fortran Anno -> Fortran Anno
 flattenSubroutineCall subTable argTransTable (Call anno cSrc callExpr args) = fromMaybe callFortran shiftedSubroutineReplacement
         where
             callFortran = (Call anno cSrc callExpr args)
-            subroutineName = if extractVarNames callExpr == [] then (error "flattenSubroutineCall:callExpr\n" ++ (show callExpr))  else varNameStr (head (extractVarNames callExpr))
+            subroutineName = if extractVarNames callExpr == [] 
+                then (error "flattenSubroutineCall:callExpr\n" ++ (show callExpr))  
+                else varNameStr (head (extractVarNames callExpr))
             subroutineReplacement = case DMap.lookup subroutineName subTable of
                                         Nothing -> Nothing
                                         Just subroutine -> Just (substituteArguments argTransTable callFortran (subroutineTable_ast subroutine))
@@ -524,8 +599,8 @@ generateKernelCallSrcRange subTable ast = (kernelsStart, kernelsEnd)
 optimseBufferTransfers_program :: VarAccessAnalysis -> Program Anno -> Program Anno
 optimseBufferTransfers_program varAccessAnalysis ast = ast_optimisedBetweenKernels
         where
-            ast_optimisedBetweenKernels = compareKernelsInOrder varAccessAnalysis kernels ast
             kernels = extractKernels ast
+            ast_optimisedBetweenKernels = compareKernelsInOrder varAccessAnalysis kernels ast
 --            kernels_optimisedBetween = extractKernels ast_optimisedBetweenKernels
 
 findEarliestInitialisationSrcSpan :: VarAccessAnalysis -> SrcSpan -> [VarName Anno] -> SrcSpan
@@ -600,7 +675,7 @@ eliminateBufferPairsKernel_recurse varAccessAnalysis firstKernel kernels ignored
 eliminateBufferPairsKernel :: VarAccessAnalysis -> [SrcSpan] -> Fortran Anno -> Fortran Anno -> (Fortran Anno, Fortran Anno)
 eliminateBufferPairsKernel varAccessAnalysis ignoredSpans firstKernel secondKernel = (newFirstKernel, newSecondKernel) -- warning (newFirstKernel, newSecondKernel) debugMessage
         where
-            debugMessage = "\n\nNewFirstKernel:\n" ++ (miniPPF newFirstKernel) ++ "\n\nNewSecondKernel:\n" ++ (miniPPF newSecondKernel)
+--            debugMessage = "\n\nNewFirstKernel:\n" ++ (miniPPF newFirstKernel) ++ "\n\nNewSecondKernel:\n" ++ (miniPPF newSecondKernel)
 --                            ++ "\n\n readsBetween:\n" ++ (show $ map (\(VarName _ v) -> v) readsBetween) ++ "\n\n writesBetween:\n" ++ (show $ map (\(VarName _ v) -> v) writesBetween)
 --                            ++ "\n\n firstBufferReads:\n" ++ (show $ map (\(VarName _ v) -> v) firstBufferReads) ++ "\n\n newFirstBufferReads:\n" ++ (show $ map (\(VarName _ v) -> v) newFirstBufferReads)
 --                            ++ "\n\n secondBufferWrites:\n" ++ (show $ map (\(VarName _ v) -> v) secondBufferWrites) ++ "\n\n newSecondBufferWrites:\n" ++ (show $ map (\(VarName _ v) -> v) newSecondBufferWrites)    
@@ -679,7 +754,9 @@ extractCallsWithStrings codeSeg = case codeSeg of
 
 substituteArguments :: ArgumentTranslation -> Fortran Anno -> ProgUnit Anno -> (Fortran Anno)
 substituteArguments argTransTable (Call _ _ _ arglist) (Sub _ _ _ _ arg (Block _ _ _ _ _ for)) = everywhere (mkT (replaceArgs argTransTable)) for
-
+-- WV: TODO: this allows only to substitute a variable name with another variable name 
+-- A more complete approach is to allow substitution of expressions
+-- However, to make this work for e.g. p2(0,:,:,:) would mean replacing p(i,j,k) with p2(0,i,j,k), this is far from obvious
 replaceArgs :: DMap.Map (VarName Anno) (VarName Anno) -> VarName Anno -> VarName Anno
 replaceArgs varNameReplacements varname = DMap.findWithDefault varname varname varNameReplacements
 

@@ -52,14 +52,14 @@ This works on a full subroutine. So in principle after this is done, the var dec
 data SubroutineTable = DMap.Map String (ProgUnit Anno, String)
 annoListing :: [(String, String)] : append (filename, parAnno) where parAnno contains all of the parallelising errors for this particular run of the compiler.
 -}    
-paralleliseProgUnit_foldl :: SubroutineTable -> (SubroutineTable, [(String, String)]) -> String -> (SubroutineTable, [(String, String)])
-paralleliseProgUnit_foldl originalTable (accumSubTable, annoListing) subName = (newSubTable, annoListing ++ [(filename, parAnno)])
+paralleliseProgUnit_foldl :: [String] -> SubroutineTable -> (SubroutineTable, [(String, String)]) -> String -> (SubroutineTable, [(String, String)])
+paralleliseProgUnit_foldl ioWriteSubroutines originalTable (accumSubTable, annoListing) subName = (newSubTable, annoListing ++ [(filename, parAnno)])
         where
             subrec = DMap.findWithDefault (error "paralleliseProgUnit_foldl") subName originalTable
             progUnit = subAst subrec
             filename = subSrcFile subrec
             progUnitfoldedConstants = foldConstants progUnit
-            accessAnalysis = analyseAllVarAccess_progUnit progUnit
+            accessAnalysis = analyseAllVarAccess_progUnit ioWriteSubroutines progUnit
             parallelisedProgUnit = everywhere (mkT (paralleliseBlock filename originalTable accessAnalysis)) progUnitfoldedConstants
             parAnno = compileAnnotationListing parallelisedProgUnit -- (warning  (show parallelisedProgUnit)) -- (produceCode_progUnit DMap.empty DMap.empty ([],"") "kernel_module" "superkernel" [] parallelisedProgUnit)))
             newSubTable = DMap.insert subName (MkSubRec parallelisedProgUnit filename []) accumSubTable

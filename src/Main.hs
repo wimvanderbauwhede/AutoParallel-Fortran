@@ -58,6 +58,9 @@ main = do
     let filenames = case DMap.lookup filenameFlag argMap of
                         Just filenames -> filenames
                         Nothing -> usageError
+    let ioWriteSubroutines = case DMap.lookup ioWriteRoutineFlag argMap of
+                        Just subs -> subs
+                        Nothing -> usageError
     let mainFilename = case DMap.lookup mainFileFlag argMap of
                         Just filenames -> head filenames
                         Nothing -> usageError
@@ -96,7 +99,7 @@ main = do
     
     -- < STEP 4 : Parallelise the loops >
     -- WV: this is the equivalent of calling a statefull pass on every subroutine.
-    let (parallelisedSubroutines, parAnnotations) = foldl (paralleliseProgUnit_foldl parsedSubroutines') (DMap.empty, []) subroutineNames                 
+    let (parallelisedSubroutines, parAnnotations) = foldl (paralleliseProgUnit_foldl ioWriteSubroutines parsedSubroutines') (DMap.empty, []) subroutineNames                 
 
     -- < STEP 5 : Try to fuse the parallelised loops as much as possible (on a per-subroutine basis) >    
     -- (SubroutineTable, [(String, String)])
@@ -109,8 +112,8 @@ main = do
     let argTranslations = extractSubroutineArgumentTranslationMaps combinedKernelSubroutines parsedMain
     -- WV: TODO: put these into SubRec.subCalledSubs.ArgMap or at least in SubRec.subCalledSubsArgMaps
 
-    -- WV: This is host-side, I think
-    let (optimisedBufferTransfersSubroutines, newMainAst) = optimiseBufferTransfers combinedKernelSubroutines argTranslations parsedMain 
+    -- WV: This is host-side
+    let (optimisedBufferTransfersSubroutines, newMainAst) = optimiseBufferTransfers ioWriteSubroutines combinedKernelSubroutines argTranslations parsedMain 
     
     --    < STEP 7b : > 
     --    WV: this is kernel-side
@@ -138,6 +141,9 @@ filenameFlag = "-modules"
 outDirectoryFlag = "-out"
 loopFusionBoundFlag = "-lfb"
 verboseFlag = "-v"
+ioWriteRoutineFlag = "-iowrite"
+ioRWRoutineFlag = "-iorw"
+ioReadRoutineFlag = "-ioread"
 mainFileFlag = "-main"
 cppDefineFlag = "-D"
 cppExcludeFlag = "-X"
@@ -145,22 +151,25 @@ fixedFormFlag = "-ffixed-form"
 platFlag = "-plat"
 
 
-flags = [filenameFlag, outDirectoryFlag, loopFusionBoundFlag, platFlag, cppDefineFlag, cppExcludeFlag, verboseFlag, mainFileFlag, fixedFormFlag]
+flags = [filenameFlag, outDirectoryFlag, loopFusionBoundFlag, platFlag, cppDefineFlag, cppExcludeFlag, verboseFlag, mainFileFlag, ioWriteRoutineFlag, fixedFormFlag]
 
 processArgs :: [String] -> DMap.Map String [String]
 processArgs [] = usageError
-processArgs (flag:arg:args)    |    elem flag flags = gatherFlag flag (arg:args) []
-                            |    otherwise         = gatherFlag filenameFlag (flag:arg:args) []
+processArgs (flag:arg:args)    
+    |    elem flag flags = gatherFlag flag (arg:args) []
+    |    otherwise         = gatherFlag filenameFlag (flag:arg:args) []
 
 processArgs' :: [String] -> DMap.Map String [String]
-processArgs' (flag:arg:args)     |    elem flag flags = gatherFlag flag (arg:args) []
-                                |    otherwise = error (flag ++ " not a recognised argument")
+processArgs' (flag:arg:args)     
+    |    elem flag flags = gatherFlag flag (arg:args) []
+    |    otherwise = error (flag ++ " not a recognised argument")
 processArgs' (flag:arg)            =    gatherFlag flag arg []
 processArgs' [] = DMap.empty
 
 gatherFlag :: String -> [String] -> [String] -> DMap.Map String [String]
-gatherFlag flag (arg:args)  collected    |    elem arg flags = DMap.insert flag collected (processArgs' (arg:args))
-                                        |    otherwise = gatherFlag flag args (collected ++ [arg])
+gatherFlag flag (arg:args)  collected    
+    |    elem arg flags = DMap.insert flag collected (processArgs' (arg:args))
+    |    otherwise = gatherFlag flag args (collected ++ [arg])
 gatherFlag flag [] collected = DMap.insert flag collected (processArgs' [])
 
 addArg :: DMap.Map String [String] -> String -> String -> DMap.Map String [String]

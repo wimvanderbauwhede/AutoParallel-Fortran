@@ -93,10 +93,15 @@ generateArgumentTranslation subTable (Call anno src callExpr arglist) = varNameR
             callArgs = everything (++) (mkQ [] extractExpr_list) arglist
             bodyArgs = everything (++) (mkQ [] extractArgName) arg
             -- WV: FIXME: if a sub call has const or expr args this will always return an error. 
-            callArgs_varNames = map (\x -> if extractVarNames x == [] then error ("substituteArguments: " ++ (show x)++" ; "++(show callArgs)) else  head (extractVarNames x)) callArgs
+--            callArgs_varNames = map (\x -> if extractVarNames x == [] then error ("substituteArguments: " ++ (show x)++" ; "++(show callArgs)) else  head (extractVarNames x)) callArgs
+            callArgs_varNames = map (\x -> case extractMaybeVarNames x of
+                    Just vs -> head vs
+                    Nothing -> VarName anno "BOOM!" 
+                    ) callArgs
+--                    if extractVarNames x == [] then error ("substituteArguments: " ++ (show x)++" ; "++(show callArgs)) else  head (extractVarNames x)) callArgs
             bodyArgs_varNames = map (\(ArgName _ str) -> VarName nullAnno str) bodyArgs
-
-            varNameReplacements = foldl (\dmap (old, new) -> DMap.insert old new dmap) DMap.empty (zip bodyArgs_varNames callArgs_varNames)
+            varNameReplacements = DMap.fromList (zip bodyArgs_varNames callArgs_varNames)
+--            varNameReplacements = foldl (\dmap (old, new) -> DMap.insert old new dmap) DMap.empty (zip bodyArgs_varNames callArgs_varNames)
 
 --    The following 5 functions allow for the use of the argument translation datastructures. These functions actually produce the translated
 --    versions of VarNames.
