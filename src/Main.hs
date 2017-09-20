@@ -60,10 +60,10 @@ main = do
                         Nothing -> usageError
     let ioWriteSubroutines = case DMap.lookup ioWriteRoutineFlag argMap of
                         Just subs -> subs
-                        Nothing -> usageError
+                        Nothing -> []
     let ioReadSubroutines = case DMap.lookup ioReadRoutineFlag argMap of
                         Just subs -> subs
-                        Nothing -> usageError
+                        Nothing -> []
     let mainFilename = case DMap.lookup mainFileFlag argMap of
                         Just filenames -> head filenames
                         Nothing -> usageError
@@ -154,7 +154,7 @@ fixedFormFlag = "-ffixed-form"
 platFlag = "-plat"
 
 
-flags = [filenameFlag, outDirectoryFlag, loopFusionBoundFlag, platFlag, cppDefineFlag, cppExcludeFlag, verboseFlag, mainFileFlag, ioWriteRoutineFlag, fixedFormFlag]
+flags = [filenameFlag, outDirectoryFlag, loopFusionBoundFlag, platFlag, cppDefineFlag, cppExcludeFlag, verboseFlag, mainFileFlag, ioWriteRoutineFlag, ioReadRoutineFlag, fixedFormFlag]
 
 processArgs :: [String] -> DMap.Map String [String]
 processArgs [] = usageError
