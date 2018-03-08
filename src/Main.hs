@@ -86,19 +86,14 @@ main = do
     let cppXFlags = DMap.findWithDefault [] cppExcludeFlag argMap
 
     -- < STEP 2 : Parsing >
---    parsedPrograms <- mapM (parseFile cppDFlags fixedForm) filenames
     parsedPrograms_stashes <- mapM (parseFile cppDFlags cppXFlags fixedForm) filenames
     let
         (parsedPrograms,stashes,moduleVarTables) = unzip3 parsedPrograms_stashes
---    mapM (putStr . show) stashes
---    parsedMain <- parseFile cppDFlags fixedForm mainFilename
     (parsedMain,mainStash,mainModuleVarTable) <- parseFile cppDFlags cppXFlags fixedForm mainFilename
---    putStr $ show mainStash
     -- < STEP 3 : Construct subroutine AST lists>
     let parsedSubroutines' = constructSubroutineTable (zip parsedPrograms filenames)
     let subroutineNames = DMap.keys parsedSubroutines'
     let parsedSubroutines = parsedSubroutines'
---    let parsedSubroutines = addToSubroutineTable (parsedMain,mainFilename) parsedSubroutines' -- FIXME: empty list error
     
     -- < STEP 4 : Parallelise the loops >
     -- WV: this is the equivalent of calling a statefull pass on every subroutine.

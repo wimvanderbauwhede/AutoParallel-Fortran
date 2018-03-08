@@ -48,7 +48,7 @@ import Platform
 --    list is used heavily in this module.
 readOriginalFileLines :: [String] -> [String] -> Bool -> String -> IO ([String])
 readOriginalFileLines cppDFlags cppXFlags fixedForm filename = do
-                content <- cpp cppDFlags cppXFlags fixedForm filename
+                content <- runCpp cppDFlags cppXFlags fixedForm filename
                 let contentLines = lines content
                 return contentLines
                 -- so here I have to go through these lines, and find 'use' declarations, and substitute these 
@@ -62,9 +62,17 @@ defaultFilename (x:xs) = x ++ "/" ++ defaultFilename xs
 
 generateStateName :: String -> String
 generateStateName kernelName = "ST_" ++ (map (toUpper) kernelName)
+-- WV: The numbers at the end of the  kernel names are the line numbers of the start of the subroutine in its source file
+-- I would prefer to have simple contiguous numbering.
+-- That would require keeping a running counter and adding it as an argument.
+generateKernelName :: String -> SrcSpan -> String
+generateKernelName identifier src = (getModuleName filename) ++ "_" ++ identifier
+                                            ++ "_" ++ show line
+            where
+                ((SrcLoc filename line _), _) = src
 
-generateKernelName :: String -> SrcSpan -> [VarName Anno] -> String
-generateKernelName identifier src varnames = (getModuleName filename) ++ "_" ++ identifier
+generateKernelNameOLD :: String -> SrcSpan -> [VarName Anno] -> String
+generateKernelNameOLD identifier src varnames = (getModuleName filename) ++ "_" ++ identifier
                                             ++ "_" ++ show line
             where
                 ((SrcLoc filename line _), _) = src
@@ -309,7 +317,7 @@ produceCodeBlock allKernelArgsMap argTranslation prog modVarTable tabs originalL
             -- fort is the code with extra OpenCL buffer reads/writes
             block = Block anno useBlock imp src decl fort
             fortranSrc = srcSpan fort
-            ((SrcLoc _ fortran_ls _), _) = warning fortranSrc (show (src,fortranSrc))
+            ((SrcLoc _ fortran_ls _), _) = fortranSrc -- warning fortranSrc (show (src,fortranSrc))
             -- src is the SrcSpan of the *original* ast
             (nonGeneratedHeaderSrcSpan, nonGeneratedFooterSrcSpan) = getSrcSpanNonIntersection src fortranSrc
 
@@ -543,8 +551,8 @@ synthesiseKernelCaseAlternative tabs state kernelName args =  tabs ++ "case (" +
 
 synthesiseKernels :: Platform -> [String] -> ProgUnit Anno -> (Program Anno, String) -> Fortran Anno -> [(String, String)]
 synthesiseKernels plat originalLines orig_ast prog codeSeg = case codeSeg of
-                OpenCLMap _ src _ w _ _ _ -> [(synthesiseOpenCLMap plat "" originalLines orig_ast prog codeSeg, generateKernelName "map" src w)] -- WV20170426
-                OpenCLReduce _ src _ _ _ _ rv _ ->  [(synthesiseOpenCLReduce plat "" originalLines orig_ast prog codeSeg, generateKernelName "reduce" src (map (\(v, e) -> v) rv))] -- WV20170426
+                OpenCLMap _ src _ w _ _ _ -> [synthesiseOpenCLMap plat "" originalLines orig_ast prog codeSeg] -- WV20170426
+                OpenCLReduce _ src _ _ _ _ rv _ ->  [synthesiseOpenCLReduce plat "" originalLines orig_ast prog codeSeg] -- WV20170426
                 _ -> []
 
 synthesiseSizeStatements :: String -> [VarName Anno] -> Program Anno -> (String, String)
@@ -827,8 +835,9 @@ synthesiseDeclList ((expr1, expr2, maybeInt):xs) = outputExprFormatting expr1 ++
 --2/ determine which ones need to be arguments and which one locals
 -- WV: I wonder if there is any benefit in padding the NDRange for Map. If so then that needs to be done partially on the host of course. TODO
 -- WV: Also, apart from padding, there is also loop unrolling to consider, which might help for CPU and MIC, and which would require padding. TODO
-synthesiseOpenCLMap :: Platform -> String -> [String] -> ProgUnit Anno -> (Program Anno, String) -> Fortran Anno -> String
+synthesiseOpenCLMap :: Platform -> String -> [String] -> ProgUnit Anno -> (Program Anno, String) -> Fortran Anno -> (String,String)
 synthesiseOpenCLMap plat inTabs originalLines orig_ast programInfo (OpenCLMap anno src r w l il fortran) = -- WV20170426
+                                                                (
                                                                     inTabs ++ "subroutine " ++ kernelName
                                                                     ++"(" 
                                                                                     ++ allArgs_ptrAdaptionStr ++ ")\n"
@@ -860,6 +869,8 @@ synthesiseOpenCLMap plat inTabs originalLines orig_ast programInfo (OpenCLMap an
                                                                     ++ "\n"
                                                                     ++ inTabs ++ "end subroutine " ++ kernelName
                                                                     ++ "\n\n\n"
+                                                                    , kernelName
+                                                                 )
 
                                             where
                                                 orig_decls_stmts = ( \(Block _ _ _ _ decls stmts) -> (decls,stmts) ) ( ( \(Sub _ _ _ _ _ b) -> b ) orig_ast )
@@ -868,7 +879,7 @@ synthesiseOpenCLMap plat inTabs originalLines orig_ast programInfo (OpenCLMap an
 
                                                 prog = fst programInfo
 
-                                                kernelName = generateKernelName "map" src w
+                                                kernelName = generateKernelName "map" src
                                                 globalIdVar = generateVar (VarName nullAnno "global_id")
                                                 tabs = inTabs ++ tabInc
                                                 allArgs = extractKernelArguments (OpenCLMap anno src r w l il fortran)       -- WV20170426
@@ -1003,8 +1014,9 @@ getMissingArgDeclStrs missingArgs_strs originalLines tabs =
 --        primary reduction operation.
 --    -    Assign values to global result array that host will reduce later
 --    -    End subroutine. 
-synthesiseOpenCLReduce :: Platform -> String ->  [String] -> ProgUnit Anno ->  (Program Anno, String)-> Fortran Anno -> String
+synthesiseOpenCLReduce :: Platform -> String ->  [String] -> ProgUnit Anno ->  (Program Anno, String)-> Fortran Anno -> (String,String)
 synthesiseOpenCLReduce plat inTabs originalLines orig_ast programInfo (OpenCLReduce anno src r w l il rv fortran)  = -- WV20170426
+                                (
                                        inTabs ++ "subroutine " ++ kernelName
                                        ++ "("                 
                                        ++ allArgs_ptrAdaptionStr
@@ -1095,11 +1107,13 @@ synthesiseOpenCLReduce plat inTabs originalLines orig_ast programInfo (OpenCLRed
                                        ++ "\n"
                                        ++ inTabs ++ "end subroutine " ++ kernelName
                                        ++"\n\n\n"
+                                       , kernelName
+                                   )
        where
            orig_decls_stmts = (\(Block _ _ _ _ decls stmts) -> (decls,stmts)) (( \(Sub _ _ _ _ _ b) -> b ) orig_ast)
            prog = fst programInfo
 
-           kernelName = generateKernelName "reduce" src (map (\(v, e) -> v) rv)
+           kernelName = generateKernelName "reduce" src 
            tabs = inTabs ++ tabInc
 
            extractedUses = everything (++) (mkQ [] getUses) prog
@@ -1286,7 +1300,7 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLMap anno src r w l il fortr
 
                 globalWorkItems = generateGlobalWorkItemsExpr l
 
-                kernelName = (generateKernelName "map" src w)
+                kernelName = generateKernelName "map" src
                 stateName = generateStateName kernelName
 
                 bufferWrites = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Write") (readDecls ++ readWriteDecls ++ [statePtrDecl]))
@@ -1345,7 +1359,7 @@ synthesiseKernelCall (progAst, filename) tabs (OpenCLReduce anno src r w l il rv
 
                 reductionWorkItemsExpr = generateProductExpr nthVar nunitsVar
 
-                kernelName = (generateKernelName "reduce" src (map (\(v, e) -> v) rv)) 
+                kernelName = generateKernelName "reduce" src 
                 stateName = generateStateName kernelName
 
                 bufferWrites = foldl (\accum item -> accum ++ "\n" ++ item) "" (map (synthesiseBufferAccess tabs "Write") (readDecls ++ readWriteDecls ++ [statePtrDecl]))

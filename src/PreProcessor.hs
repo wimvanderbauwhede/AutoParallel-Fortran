@@ -1,4 +1,4 @@
-module PreProcessor (preProcess)
+module PreProcessor (preProcess, removeBlankLines)
 
 where
 
@@ -10,8 +10,8 @@ import qualified Data.Map as DMap
 import Warning
 
 preProcess :: Bool -> [String] -> String -> (String, DMap.Map Int [String])
-preProcess False macros inputStr = (replaceIfDefByLabel macros) $ removeBlankLines $ andOperatorFix $ orOperatorFix $ containsStatementFix $ caseStatementFix $ inputStr
-preProcess True macros inputStr = (replaceIfDefByLabel macros) $ removeBlankLines $ andOperatorFix $ orOperatorFix $ containsStatementFix $ caseStatementFix $ fixedForm $ inputStr
+preProcess False macros inputStr = (replaceIfDefByLabel macros) $ removeBlankLinesStr $ andOperatorFix $ orOperatorFix $ containsStatementFix $ caseStatementFix $ inputStr
+preProcess True macros inputStr = (replaceIfDefByLabel macros) $ removeBlankLinesStr $ andOperatorFix $ orOperatorFix $ containsStatementFix $ caseStatementFix $ fixedForm $ inputStr
 
 caseInsensitive_strReplace :: [Char] -> [Char] -> [Char] -> [Char]
 caseInsensitive_strReplace original replace str     
@@ -20,7 +20,7 @@ caseInsensitive_strReplace original replace str
     | str == []        = []
     | otherwise     = (take 1 str) ++ caseInsensitive_strReplace original replace (drop 1 str)
 
--- removeBlankLines :: String -> String
+removeBlankLinesStr :: String -> String
 -- removeBlankLines inputStr = foldl (removeBlankLines_foldl) "" allLines
 --         where
 --             allLines = lines inputStr
@@ -29,7 +29,9 @@ caseInsensitive_strReplace original replace str
 -- removeBlankLines_foldl accum item = accum ++ (if all (isSpace) item then "" else item ++ "\n")
 
 -- WV
-removeBlankLines inputStr = unlines $ filter (not . (all isSpace)) $ lines inputStr
+removeBlankLinesStr inputStr = unlines $ removeBlankLines $ lines inputStr
+removeBlankLines  :: [String] -> [String]
+removeBlankLines = filter (not . (all isSpace)) 
 
 -- removeBlankLines :: [Char] -> [Char]
 -- removeBlankLines [] = []
