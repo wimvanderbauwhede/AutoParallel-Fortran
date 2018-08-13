@@ -65,12 +65,16 @@ paralleliseProgUnit_foldl ioWriteSubroutines originalTable (accumSubTable, annoL
             newSubTable = DMap.insert subName (MkSubRec parallelisedProgUnit filename []) accumSubTable
 
 -- This one merges loops so again it should not touch the vardecls in the sub
-combineKernelProgUnit_foldl :: Maybe(Float) -> (SubroutineTable, [(String, String)]) -> String -> (SubroutineTable, [(String, String)])
+combineKernelProgUnit_foldl :: Maybe Float -> (SubroutineTable, [(String, String)]) -> String -> (SubroutineTable, [(String, String)])
 combineKernelProgUnit_foldl loopFusionBound (subTable, annoListing) subName = (newSubTable, annoListing ++ [(filename, combAnno)])
         where
+        -- get the record from the subroutine table
             subrec = DMap.findWithDefault (error "paralleliseProgUnit_foldl") subName subTable
+            -- get the program unit, i.e. in practice the subroutine AST, from the record
             progUnit = subAst subrec
+            -- get the filename from the record
             filename = subSrcFile subrec
+            -- the actual loop fusion call. removeAllAnnotations is called because after the fusion the annotations are meaningless
             combinedProgUnit = combineKernelsProgUnit loopFusionBound (removeAllAnnotations progUnit)
             combAnno = compileAnnotationListing combinedProgUnit
             newSubTable = DMap.insert subName (MkSubRec combinedProgUnit filename []) subTable

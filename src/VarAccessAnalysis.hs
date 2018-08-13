@@ -25,6 +25,12 @@ where
 --    for variables at different points in the program. This is used when generating reduction kernels to be 
 --    able to assign an initial value to reduction variables. Finally, data from this analysis phase is used
 --    to differentiate between function calls and array accesses in the input source.
+--
+-- WV: Here we should identify stencils. 
+-- WV: A stencil means that inside the loop, an array has been accessed with different iterators
+-- WV: So I will extend VarAccessRecord to include the read accesses; for completeness also the write accesses:
+-- WV: we use getAccessedExprs() to get the list of index expressions.
+
 
 import Warning
 import Data.Generics                 (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
@@ -41,12 +47,15 @@ import F95IntrinsicFunctions (f95IntrinsicFunctions)
 --    Type used to colate data on variable accesses throughout a program.
 --                        All reads     All writes
 type VarAccessRecord = ([SrcSpan],     [SrcSpan])
+
+type VarAccessRecordWV = ( [(SrcSpan,Expr Anno)], [(SrcSpan, Expr Anno)] )
+    
 -- WV: this map proveds all read and write locations for a local variable
 type LocalVarAccessAnalysis = DMap.Map (VarName Anno) VarAccessRecord
 -- WV: this map provides the expression(s) defining the local variable, I guess, so this would be assignments and should be args of subcalls with intent Out or InOut
 type LocalVarValueAnalysis = DMap.Map (VarName Anno) [(SrcSpan, Expr Anno)]
--- WV I wonder if instead of [VarName Anno] a declaration would not have been better?
--- The list of LocalVarAccessAnalysis is an extenstion to deal with IO routines: [Kernel, IORoutines]
+-- WV: I wonder if instead of [VarName Anno] a declaration would not have been better?
+-- WV: The list of LocalVarAccessAnalysis is an extenstion to deal with IO routines: [Kernel, IORoutines]
 --                                                                            Subroutine arguments     Declared var names
 type VarAccessAnalysis = ([LocalVarAccessAnalysis],    LocalVarValueAnalysis, [VarName Anno],     [VarName Anno])
 
@@ -70,16 +79,18 @@ analyseAllVarAccess ioWriteSubroutineNames prog = ([localVarAccesses,ioRoutineAn
                             --    automatically it seems. 
                             declarations = everything (++) (mkQ [] getDeclaredVarNames) prog
 
-                            localVarValues = everything (combineMaps) (mkQ DMap.empty analyseAllVarValues_fortran) prog
+                            localVarValues = everything combineMaps (mkQ DMap.empty analyseAllVarValues_fortran) prog
 
 analyseLocalVarAccess :: [String] -> [VarName Anno] -> Program Anno -> (LocalVarAccessAnalysis,LocalVarAccessAnalysis)
 analyseLocalVarAccess ioWriteSubroutineNames declarations prog = (analysis,ioRoutineAnalysis')
                 where
                     blockAnalysis_ioRoutineAnalysis :: [(LocalVarAccessAnalysis,LocalVarAccessAnalysis)]
-                    blockAnalysis_ioRoutineAnalysis=  foldl (\accum item -> accum ++ (gmapQ (mkQ (DMap.empty,DMap.empty) (analyseAllVarAccess_block ioWriteSubroutineNames declarations) ) item) ) [] prog
+                    blockAnalysis_ioRoutineAnalysis = 
+                        foldl (\accum item -> accum ++ (gmapQ (mkQ (DMap.empty,DMap.empty) (analyseAllVarAccess_block ioWriteSubroutineNames declarations) ) item) ) [] prog
                     (blockAnalysis,ioRoutineAnalysis) = unzip blockAnalysis_ioRoutineAnalysis
                     progUnitAnalysis_ :: [(LocalVarAccessAnalysis,LocalVarAccessAnalysis)]
-                    progUnitAnalysis_ = foldl (\accum item -> accum ++ (gmapQ (mkQ (DMap.empty,DMap.empty) (analyseLocalVarAccess     ioWriteSubroutineNames declarations)) item)) [] prog
+                    progUnitAnalysis_ = 
+                        foldl (\accum item -> accum ++ (gmapQ (mkQ (DMap.empty,DMap.empty) (analyseLocalVarAccess ioWriteSubroutineNames declarations)) item)) [] prog
                     (progUnitAnalysis,_) = unzip progUnitAnalysis_
                     analysis = foldl combineLocalVarAccessAnalysis DMap.empty (blockAnalysis ++ progUnitAnalysis)
                     ioRoutineAnalysis' = foldl combineLocalVarAccessAnalysis DMap.empty ioRoutineAnalysis
@@ -247,12 +258,14 @@ analyseAllVarValues_fortran _ = DMap.empty
 analyseAllVarAccess_block :: [String] -> [VarName Anno] -> Block Anno -> (LocalVarAccessAnalysis,LocalVarAccessAnalysis)
 analyseAllVarAccess_block ioWriteSubroutineNames declarations (Block _ _ _ _ _ fortran) = analyseAllVarAccess_fortran ioWriteSubroutineNames declarations (DMap.empty,DMap.empty) fortran
 
+
 analyseAllVarAccess_fortran :: [String] -> [VarName Anno] -> (LocalVarAccessAnalysis,LocalVarAccessAnalysis) -> Fortran Anno ->  (LocalVarAccessAnalysis,LocalVarAccessAnalysis)
 analyseAllVarAccess_fortran ioWriteSubroutineNames declarations (prevAnalysis,prevAnalysis_io) codeSeg  = case codeSeg of
                                     Assg _ _ writeExpr readExpr -> (analysis',DMap.empty)
                                                 where
                                                     readExprs = extractOperands readExpr
                                                     readVarNames = foldl (collectVarNames_foldl declarations) [] readExprs
+                                                    -- on the LHS the expr can never be a function call so it is easy
                                                     writtenVarNames = extractVarNames writeExpr
 
                                                     analysis = foldl (addVarReadAccess (srcSpan readExpr)) prevAnalysis readVarNames
@@ -334,7 +347,7 @@ analyseAllVarAccess_fortran ioWriteSubroutineNames declarations (prevAnalysis,pr
 -- WV: I guess the structure of the If is:
 -- If  _ _ condition first_block [else_if cond more_blocks] (Maybe else_block)                                                    
 -- If  p SrcSpan (Expr p) (Fortran p) [((Expr p),(Fortran p))] (Maybe (Fortran p))
-
+-- WV: This is to deal with function calls. For these, we extract the arguments.
 collectVarNames :: [VarName Anno] -> Expr Anno -> [VarName Anno]
 collectVarNames declarations item = varnames
                         where

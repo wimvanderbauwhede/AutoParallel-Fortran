@@ -7,7 +7,11 @@ module VarDependencyAnalysis
      constructLoopIterTable
      )
 where
-
+-- WV: Either here or in VarAccessAnalysis we should identify stencils. 
+-- WV: A stencil means that inside the loop, an array has been accessed with different iterators
+-- WV: To do this right we'd need to parse and almost evaluate the indices.
+-- WV: But insteas what we'll do is simply compare expressions. If there is only a single read expression per array, it's not a stencil
+-- WV: This is overly strict but it will cover the most commonly written code.
 --    The code in this file is used to perform dependency analysis for a block of code. A call to 'analyseDependencies'
 --    will produce a set of direct dependencies between variables. A direct dependency is formed when one variable is used in the 
 --    calculation of another variable's assignment. It is possible under this scheme for variables to depend upon themselves and this

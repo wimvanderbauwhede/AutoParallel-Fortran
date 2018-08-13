@@ -5,6 +5,9 @@ where
 --    WV: I guess here might be where the problem of missing argument occurs, as before this the subroutines should be intact.
 --    WV: a "kernel" here is the body of a loop or nested loop, which was earlier transformed into a subroutine. So it might have gone wrong there already.
 
+--    WV: There is an error in the logic here. Two or more loops should only be merged if the access to an array in the loop is not a stencil
+--    WV: So we must check if the access in any loop is a stencil, i.e. if there are multiple indices.
+
 --    This file contains code that handles combining adjacent and nested kernels. The intention is that the top level 'combineKernels' function will be called
 --    against an AST that has already been transformed with parallel kernels applied. When calling the 'combineKernels' function, a Maybe(Float) is supplied
 --    that represents a the loop fusion bound (the limit of how different the end values for two loops can be for them to be fused). If this input is 'Nothing'

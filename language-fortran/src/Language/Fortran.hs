@@ -245,7 +245,7 @@ data Fortran  p = Assg p SrcSpan (Expr p) (Expr p)
 data Expr  p = Con p SrcSpan String
              | ConL p SrcSpan Char String
              | ConS p SrcSpan String  -- String representing a constant
-             | Var p SrcSpan  [(VarName p, [Expr p])]
+             | Var p SrcSpan  [(VarName p, [Expr p])] -- WV: the [Expr p] list is used for array accesses
              | Bin p SrcSpan  (BinOp p) (Expr p) (Expr p)
              | Unary p SrcSpan (UnaryOp p) (Expr p)
              | CallExpr p SrcSpan (Expr p) (ArgList p) -- WV: UNUSED
