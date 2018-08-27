@@ -35,7 +35,7 @@ ArgList	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/s
 ArgName	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	61;"	d
 ArgName	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	61;"	t
 ArgumentTranslation	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/SubroutineTable.hs	39;"	t
-ArrayAccessExpressions	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	61;"	t	file:
+ArrayAccessExpressions	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	65;"	t	file:
 ArrayCon	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	257;"	d
 ArrayT	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	129;"	d
 Arrow	src/Language/Fortran/Lexer.x	165;"	d
@@ -225,11 +225,11 @@ LBrace	src/Language/Fortran/Lexer.x	166;"	d
 LParen	src/Language/Fortran/Lexer.x	163;"	d
 Label	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	213;"	d
 LitConst	src/Language/Fortran/Lexer.x	158;"	d
-LocalVarAccessAnalysis	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	45;"	t	file:
-LocalVarValueAnalysis	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	47;"	t	file:
+LocalVarAccessAnalysis	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	54;"	t	file:
+LocalVarValueAnalysis	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	56;"	t	file:
 Logical	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	133;"	d
 LoopIterRecord	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/TupleTable.hs	17;"	d
-LoopStepTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	63;"	t	file:
+LoopStepTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	67;"	t	file:
 MArrow	src/Language/Fortran/Lexer.x	165;"	d
 MIC	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Platform.hs	3;"	d
 Main	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	79;"	d
@@ -386,9 +386,10 @@ UseNil	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/sr
 Uses	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	102;"	t
 ValueTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	30;"	t
 Var	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	248;"	d
-VarAccessAnalysis	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	51;"	t
-VarAccessRecord	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	43;"	t	file:
-VarDependencyAnalysis	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	54;"	t
+VarAccessAnalysis	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	60;"	t
+VarAccessRecord	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	49;"	t	file:
+VarAccessRecordWV	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	51;"	t	file:
+VarDependencyAnalysis	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	58;"	t
 VarName	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	58;"	d
 VarName	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	58;"	t
 Variable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	48;"	t
@@ -396,7 +397,7 @@ Volatile	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/
 Where	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	209;"	d
 Write	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	210;"	d
 WriteSp	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	317;"	d
-accessDependencyCheckWV	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	232;"	v	file:
+accessDependencyCheckWV	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	236;"	v	file:
 action_0	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/Parser.hs	1771;"	v	file:
 action_1	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/Parser.hs	1775;"	v	file:
 action_10	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/Parser.hs	1847;"	v	file:
@@ -1464,18 +1465,18 @@ adaptOriginalDeclaration_varname	/Users/wim/SoC_Research/Code/Git/AutoParallel-F
 addArg	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Main.hs	174;"	v
 addAssignmentsToConstants	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/ConstantFolding.hs	62;"	v	file:
 addDeclsToConstants	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/ConstantFolding.hs	47;"	v	file:
-addDependencies	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	87;"	v	file:
-addDependency	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	90;"	v	file:
+addDependencies	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	91;"	v	file:
+addDependency	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	94;"	v	file:
 addDimension	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	163;"	v
 addImplicitNone	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	1032;"	v
 addIntent	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	278;"	v
 addNewDimensionClaus	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	198;"	v
-addRangeToIterTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	579;"	v	file:
+addRangeToIterTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	583;"	v	file:
 addToSubroutineTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/SubroutineTable.hs	51;"	v
 addToValueTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	810;"	v
 addToValueTable_type	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	813;"	v
-addVarReadAccess	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	365;"	v	file:
-addVarWriteAccess	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	372;"	v	file:
+addVarReadAccess	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	378;"	v	file:
+addVarWriteAccess	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	385;"	v	file:
 alexAndPred	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/Lexer.hs	551;"	v	file:
 alexGetByte	templates/wrappers.hs	354;"	v	file:
 alexIndexInt16OffAddr	templates/GenericTemplate.hs	60;"	v	file:
@@ -1557,13 +1558,13 @@ alex_check	templates/wrappers.hs	439;"	v	file:
 alex_deflt	templates/wrappers.hs	442;"	v	file:
 alex_scan_tkn	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/Lexer.hs	481;"	v	file:
 alex_table	templates/wrappers.hs	436;"	v	file:
-analyseAllVarAccess	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	57;"	v
-analyseAllVarAccess_block	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	248;"	v	file:
-analyseAllVarAccess_fortran	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	251;"	v	file:
-analyseAllVarAccess_progUnit	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	54;"	v
-analyseAllVarValues_fortran	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	242;"	v	file:
-analyseDependencies	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	66;"	v
-analyseLocalVarAccess	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	76;"	v	file:
+analyseAllVarAccess	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	66;"	v
+analyseAllVarAccess_block	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	259;"	v	file:
+analyseAllVarAccess_fortran	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	263;"	v	file:
+analyseAllVarAccess_progUnit	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	63;"	v
+analyseAllVarValues_fortran	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	253;"	v	file:
+analyseDependencies	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	70;"	v
+analyseLocalVarAccess	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	85;"	v	file:
 analyseLoopIteratorUsage	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LoopAnalysis.hs	252;"	v	file:
 analyseLoopIteratorUsage_foldl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LoopAnalysis.hs	264;"	v	file:
 analyseLoop_map	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LoopAnalysis.hs	57;"	v
@@ -1577,19 +1578,19 @@ appendAnnotationMap	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/La
 appendDimension	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	211;"	v
 appendFortran_recursive	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	563;"	v
 appendToMap	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	708;"	v
-applyAnnotationFormatting	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	374;"	v	file:
+applyAnnotationFormatting	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	378;"	v	file:
 applyGeneratedSrcSpans	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	374;"	v
 applyGlobalSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	346;"	v
 applyIntent	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	364;"	v
 applySrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	341;"	v
-attemptCombineAdjacentMaps	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	93;"	v	file:
+attemptCombineAdjacentMaps	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	96;"	v	file:
 buildBufferReadFortran	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/BufferTransferAnalysis.hs	594;"	v	file:
 buildBufferWriteFortran	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/BufferTransferAnalysis.hs	603;"	v	file:
 caseInsensitive_strReplace	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/PreProcessor.hs	17;"	v	file:
 caseStatementFix	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/PreProcessor.hs	42;"	v	file:
-checkConstantLessThan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	198;"	v	file:
+checkConstantLessThan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	201;"	v	file:
 checkForImplicitNone	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/FortranSynthesiser.hs	233;"	v
-checkHangingReads	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	472;"	v	file:
+checkHangingReads	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	485;"	v	file:
 checkSrcLocBefore	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	665;"	v
 checkSrcLocEqualLines	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	658;"	v
 checkSrcSpanAfter	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	668;"	v
@@ -1601,30 +1602,30 @@ chunk_size_varname	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Cod
 cmpNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/Parser.hs	13687;"	v	file:
 collapseIterTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/TupleTable.hs	52;"	v
 collectDecls	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	319;"	v
-collectVarNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	339;"	v
+collectVarNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	352;"	v
 collectVarNames_foldl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/BufferTransferAnalysis.hs	242;"	v	file:
-collectVarNames_foldl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	348;"	v	file:
-combineAdjacentKernels	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	67;"	v	file:
+collectVarNames_foldl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	361;"	v	file:
+combineAdjacentKernels	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	70;"	v	file:
 combineAnalysisInfo	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LoopAnalysis.hs	35;"	v	file:
 combineAnnotationListings_map	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Main.hs	182;"	v
 combineAnnotations	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	494;"	v
-combineBinaryListTuples	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	403;"	v	file:
+combineBinaryListTuples	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	416;"	v	file:
 combineKernelProgUnit_foldl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	69;"	v
-combineKernels	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	24;"	v	file:
-combineKernelsBlock	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	27;"	v	file:
-combineKernelsProgUnit	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	20;"	v
-combineLocalVarAccessAnalysis	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	397;"	v	file:
+combineKernels	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	27;"	v	file:
+combineKernelsBlock	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	30;"	v	file:
+combineKernelsProgUnit	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	23;"	v
+combineLocalVarAccessAnalysis	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	410;"	v	file:
 combineMaps	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	702;"	v
-combineNestedKernels	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	36;"	v	file:
-combineVarAccessAnalysis	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	378;"	v	file:
+combineNestedKernels	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	39;"	v	file:
+combineVarAccessAnalysis	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	391;"	v	file:
 commentSeparator	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	873;"	v
 commentSeparator'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	883;"	v
 compareKernelsInOrder	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/BufferTransferAnalysis.hs	700;"	v	file:
-compileAnnotationListing	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	356;"	v	file:
+compileAnnotationListing	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	360;"	v	file:
 compilerName	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	870;"	v
 constructDeclTree	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	117;"	v
-constructDependencies	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	71;"	v	file:
-constructLoopIterTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	524;"	v
+constructDependencies	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	75;"	v	file:
+constructLoopIterTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	528;"	v
 constructSubroutineTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/SubroutineTable.hs	48;"	v
 containsParameterAttr	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	261;"	v
 containsStatementFix	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/PreProcessor.hs	45;"	v	file:
@@ -1632,7 +1633,7 @@ context_parse	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-for
 context_parser	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/Parser.hs	13596;"	v	file:
 continue	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/PreProcess.hs	92;"	v	file:
 continue_non_replace	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/PreProcess.hs	90;"	v	file:
-convertFromMaybe_foldl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	495;"	v	file:
+convertFromMaybe_foldl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	499;"	v	file:
 convertScalarToOneDimArray	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	127;"	v
 cppDefineFlag	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Main.hs	146;"	v
 cppExcludeFlag	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Main.hs	147;"	v
@@ -1663,13 +1664,13 @@ evaluateExpr	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageF
 evaluateExpr_type	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	767;"	v
 evaluateRange	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	735;"	v
 expr2array_spec	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/Parser.hs	13695;"	v	file:
-exprListContainsVarNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	395;"	v	file:
-extendLoopIterTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	554;"	v	file:
-extendLoopIterTableWithValues_foldl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	569;"	v	file:
+exprListContainsVarNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	399;"	v	file:
+extendLoopIterTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	558;"	v	file:
+extendLoopIterTableWithValues_foldl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	573;"	v	file:
 extractAllCalls	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/SubroutineTable.hs	152;"	v
 extractAllVarNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	278;"	v
 extractArgName	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	175;"	v
-extractArrayIndexReadWrite_foldl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	505;"	v	file:
+extractArrayIndexReadWrite_foldl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	509;"	v	file:
 extractAssigneeFromDecl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	314;"	v
 extractAssigneeVarName	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/ConstantFolding.hs	82;"	v	file:
 extractAssignments	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	303;"	v
@@ -1708,8 +1709,8 @@ extractKernelWrites	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Bu
 extractKernels	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	206;"	v
 extractKernels'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	209;"	v
 extractLineNumber	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	623;"	v
-extractLinearOffset_var	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	336;"	v	file:
-extractLinearOffsets	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	328;"	v	file:
+extractLinearOffset_var	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	340;"	v	file:
+extractLinearOffsets	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	332;"	v	file:
 extractLoopIters	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	191;"	v
 extractLoopIters'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	194;"	v
 extractLoopVars	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	519;"	v
@@ -1741,8 +1742,8 @@ extractTopLevelAssignments	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran
 extractUsedVarName	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	526;"	v
 extractVarNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	261;"	v
 extractVarNames_loopVars	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	327;"	v
-extractWrites	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	138;"	v	file:
-extractWrites_query	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	135;"	v	file:
+extractWrites	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	142;"	v	file:
+extractWrites_query	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	139;"	v	file:
 extractintentAttrs	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	272;"	v
 f95IntrinsicFunctions	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/F95IntrinsicFunctions.hs	6;"	v
 filenameFlag	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Main.hs	138;"	v
@@ -1764,7 +1765,7 @@ flattenSubroutineAppearances	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortr
 flattenSubroutineCall	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/BufferTransferAnalysis.hs	445;"	v	file:
 flattenSubroutineCall_container	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/BufferTransferAnalysis.hs	420;"	v	file:
 foldConstants	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/ConstantFolding.hs	26;"	v
-formatLoopCarriedDependencies	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	382;"	v	file:
+formatLoopCarriedDependencies	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	386;"	v	file:
 frh4	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/Parser.hs	13684;"	v
 fst3	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/Parser.hs	13677;"	v
 fst4	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/Parser.hs	13681;"	v
@@ -1825,27 +1826,27 @@ generateSubtractionExpr_list	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortr
 generateVar	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	404;"	v
 generateWorkGroupReduction	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/FortranGenerator.hs	31;"	v
 generateWorkGroupReduction_assgs	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/FortranGenerator.hs	37;"	v
-getAccessLocationsAfterSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	171;"	v
-getAccessLocationsBeforeSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	162;"	v
-getAccessLocationsInsideSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	130;"	v
-getAccessedExprs	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	357;"	v	file:
-getAccessesAfterSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	181;"	v	file:
-getAccessesBeforeSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	201;"	v	file:
-getAccessesBetweenManySrcSpans	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	155;"	v	file:
-getAccessesBetweenSrcSpans	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	204;"	v
-getAccessesBetweenSrcSpansIgnore	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	140;"	v
-getAccessesBetweenSrcSpansIgnoreBuildSrcSpans	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	146;"	v	file:
-getAccessesInsideSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	483;"	v	file:
-getAccessesInsideSrcSpan_var	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	488;"	v	file:
-getAnnotations	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	359;"	v	file:
-getArgNamesAsVarNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	234;"	v	file:
+getAccessLocationsAfterSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	182;"	v
+getAccessLocationsBeforeSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	173;"	v
+getAccessLocationsInsideSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	141;"	v
+getAccessedExprs	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	370;"	v	file:
+getAccessesAfterSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	192;"	v	file:
+getAccessesBeforeSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	212;"	v	file:
+getAccessesBetweenManySrcSpans	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	166;"	v	file:
+getAccessesBetweenSrcSpans	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	215;"	v
+getAccessesBetweenSrcSpansIgnore	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	151;"	v
+getAccessesBetweenSrcSpansIgnoreBuildSrcSpans	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	157;"	v	file:
+getAccessesInsideSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	496;"	v	file:
+getAccessesInsideSrcSpan_var	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	501;"	v	file:
+getAnnotations	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	363;"	v	file:
+getArgNamesAsVarNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	245;"	v	file:
 getArgsAndLocalVarsForLoopBody	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/FortranSynthesiser.hs	976;"	v
-getArguments	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	226;"	v
-getArguments_list	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	231;"	v	file:
+getArguments	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	237;"	v
+getArguments_list	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	242;"	v	file:
 getDeclRank	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	171;"	v
-getDeclaredVarNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	238;"	v
+getDeclaredVarNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	249;"	v
 getDimensionExprs	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	108;"	v
-getDirectDependencies	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	93;"	v	file:
+getDirectDependencies	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	97;"	v	file:
 getEarliestSrcLoc	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	661;"	v
 getEarliestSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	650;"	v
 getErrorAnnotations	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LoopAnalysis.hs	41;"	v
@@ -1855,8 +1856,8 @@ getFirstFortranSrc	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Cod
 getGlobalID	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	293;"	v
 getGroupID	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	296;"	v
 getGroupSize	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	302;"	v
-getIndirectDependencies	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	96;"	v	file:
-getIndirectDependencies'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	99;"	v	file:
+getIndirectDependencies	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	100;"	v	file:
+getIndirectDependencies'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	103;"	v	file:
 getIterLoopVars	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	1135;"	v
 getLatestSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	654;"	v
 getLeastTuple	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/TupleTable.hs	38;"	v
@@ -1864,17 +1865,17 @@ getLocalDeclStrs	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Fortr
 getLocalDeclStrs_OLD	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/FortranSynthesiser.hs	953;"	v
 getLocalId	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	308;"	v
 getLocalSize	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	305;"	v
-getLoopConditions	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	348;"	v	file:
+getLoopConditions	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	352;"	v	file:
 getLoopVar	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	452;"	v
 getLoopVars	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	1131;"	v
 getMissingArgDeclStrs	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/FortranSynthesiser.hs	991;"	v
 getModuleName	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	373;"	v
 getMostTuple	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/TupleTable.hs	31;"	v
-getNonTempVars	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	441;"	v
+getNonTempVars	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	454;"	v
 getNumberGroups	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	299;"	v
 getOrigAST	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitter.hs	127;"	v	file:
 getOriginalDeclaration	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	241;"	v
-getPrexistingVars	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	406;"	v
+getPrexistingVars	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	419;"	v
 getReadArgs	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	224;"	v
 getReadArgs'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	226;"	v
 getReads	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LoopAnalysis.hs	47;"	v
@@ -1890,9 +1891,9 @@ getSubroutineArgumentTranslation	/Users/wim/SoC_Research/Code/Git/AutoParallel-F
 getUnitName	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	444;"	v
 getUnitName'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	447;"	v
 getUses	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	434;"	v
-getValueAtSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	351;"	v
-getVarNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	391;"	v	file:
-getVarNames_query	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	388;"	v	file:
+getValueAtSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	364;"	v
+getVarNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	395;"	v	file:
+getVarNames_query	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	392;"	v	file:
 getWrites	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LoopAnalysis.hs	50;"	v
 getWrittenArgs	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	215;"	v
 getWrittenArgs'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	217;"	v
@@ -3145,31 +3146,31 @@ isAssociativeExpr	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Loop
 isAssociativeFunction	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LoopAnalysis.hs	303;"	v	file:
 isAssociativeOp	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LoopAnalysis.hs	290;"	v	file:
 isCall	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/BufferTransferAnalysis.hs	97;"	v	file:
-isConstantAdditionOf	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	174;"	v	file:
-isConstantSubtractionOf	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	186;"	v	file:
+isConstantAdditionOf	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	177;"	v	file:
+isConstantSubtractionOf	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	189;"	v	file:
 isDeclOnly	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	982;"	v
-isDirectlyDependentOn	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	105;"	v	file:
-isFunctionCall	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	99;"	v
-isFunctionCall_varNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	113;"	v	file:
+isDirectlyDependentOn	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	109;"	v	file:
+isFunctionCall	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	110;"	v
+isFunctionCall_varNames	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	124;"	v	file:
 isGenerated	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	287;"	v
 isImplicitNone	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/FortranSynthesiser.hs	241;"	v
 isImplicitNoneDecl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	924;"	v
-isIndirectlyDependentOn	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	117;"	v
-isIndirectlyDependentOn'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	110;"	v	file:
+isIndirectlyDependentOn	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	121;"	v
+isIndirectlyDependentOn'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	114;"	v	file:
 isIntent	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	223;"	v
-isNullExpr	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	126;"	v	file:
-isPrexistingVar	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	418;"	v	file:
+isNullExpr	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	137;"	v	file:
+isPrexistingVar	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	431;"	v	file:
 isRelevantModuleLine	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	993;"	v
 isUseDecl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	926;"	v
 isVar	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	515;"	v
 isVarDeclWithMultipleVars	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	1101;"	v
-isolateAndParalleliseForLoops	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	87;"	v	file:
+isolateAndParalleliseForLoops	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	91;"	v	file:
 keywords	src/Language/Fortran/Lexer.x	172;"	v	file:
 lexer	src/Language/Fortran/Lexer.x	210;"	v
 lexer'	src/Language/Fortran/Lexer.x	213;"	v
 lineHasIfMacro	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/PreProcessor.hs	102;"	v	file:
 lineHasIfMacroHelper	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/PreProcessor.hs	103;"	v	file:
-linearExprCheck	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	322;"	v	file:
+linearExprCheck	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	326;"	v	file:
 listCartesianProduct	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	685;"	v
 listConcatUnique	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	164;"	v
 listCountAppearances	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	154;"	v
@@ -3186,22 +3187,22 @@ localMemSpaceAcc	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeE
 lookupTupleTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/TupleTable.hs	68;"	v
 lookupValueTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	800;"	v
 lookupValueTable_type	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	807;"	v
-loopCarriedDependencyCheck	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	139;"	v
-loopCarriedDependencyCheck_reductionWithIteration	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	165;"	v
-loopCarriedDependency_exhaustiveEvaluate	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	376;"	v	file:
-loopCarriedDependency_iterative_prepareIterTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	264;"	v	file:
-loopCarriedDependency_linearCheckEvaluate	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	442;"	v	file:
-loopCarriedDependency_readExprCheck	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	288;"	v	file:
-loopCarriedDependency_varCheck	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	272;"	v	file:
-loopCarriedDependency_writtenExprCheck	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	282;"	v	file:
-loopCondtions_query	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	345;"	v	file:
+loopCarriedDependencyCheck	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	143;"	v
+loopCarriedDependencyCheck_reductionWithIteration	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	169;"	v
+loopCarriedDependency_exhaustiveEvaluate	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	380;"	v	file:
+loopCarriedDependency_iterative_prepareIterTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	268;"	v	file:
+loopCarriedDependency_linearCheckEvaluate	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	446;"	v	file:
+loopCarriedDependency_readExprCheck	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	292;"	v	file:
+loopCarriedDependency_varCheck	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	276;"	v	file:
+loopCarriedDependency_writtenExprCheck	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	286;"	v	file:
+loopCondtions_query	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	349;"	v	file:
 loopFusionBoundFlag	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Main.hs	140;"	v
-loopVariableCombinationConditions	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	129;"	v	file:
+loopVariableCombinationConditions	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CombineKernels.hs	132;"	v	file:
 loop_control	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/PreProcess.hs	115;"	v	file:
 main	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Main.hs	54;"	v
 mainFileFlag	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Main.hs	145;"	v
 manyTillEnd	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/PreProcess.hs	46;"	v	file:
-maskOnVarNameUsage	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	499;"	v	file:
+maskOnVarNameUsage	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	503;"	v	file:
 matchParameterDecl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/FortranSynthesiser.hs	1275;"	v
 matchVarNameInDecl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/FortranSynthesiser.hs	1269;"	v
 maybeBinOp	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	844;"	v
@@ -3234,18 +3235,18 @@ nunitsVar	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterU
 oneVarDeclPerVarDeclLine	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	1093;"	v
 opIdentityValue	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LoopAnalysis.hs	297;"	v	file:
 optimiseBufferTransfers	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/BufferTransferAnalysis.hs	39;"	v
-optimiseLoopIterTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	344;"	v	file:
+optimiseLoopIterTable	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	348;"	v	file:
 optimseBufferTransfers_program	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/BufferTransferAnalysis.hs	640;"	v	file:
 orElem	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	136;"	v
 orOperatorFix	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/PreProcessor.hs	48;"	v	file:
 outDirectoryFlag	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Main.hs	139;"	v
 outputExprFormatting	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	102;"	v
 outputTab	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	864;"	v
-paralleliseBlock	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	82;"	v	file:
-paralleliseLoop	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	100;"	v	file:
-paralleliseLoop_map	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	144;"	v	file:
-paralleliseLoop_reduce	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	193;"	v	file:
-paralleliseLoop_reduceWithOuterIteration	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	255;"	v	file:
+paralleliseBlock	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	86;"	v	file:
+paralleliseLoop	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	104;"	v	file:
+paralleliseLoop_map	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	148;"	v	file:
+paralleliseLoop_reduce	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	197;"	v	file:
+paralleliseLoop_reduceWithOuterIteration	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	259;"	v	file:
 paralleliseProgUnit_foldl	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	56;"	v
 paramCheck_attr	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	268;"	v
 paramCheck_type	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	264;"	v
@@ -3324,9 +3325,9 @@ showSubName	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/MiniPP.hs	
 showType	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/MiniPP.hs	85;"	v	file:
 showVar	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/MiniPP.hs	146;"	v	file:
 showVarLst	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/MiniPP.hs	147;"	v
-simpleLoopCarriedDependencyCheck	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	194;"	v	file:
-simpleLoopCarriedDependencyCheck'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	197;"	v	file:
-simpleLoopCarriedDependencyCheck''	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	256;"	v	file:
+simpleLoopCarriedDependencyCheck	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	198;"	v	file:
+simpleLoopCarriedDependencyCheck'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	201;"	v	file:
+simpleLoopCarriedDependencyCheck''	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	260;"	v	file:
 small	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/PreProcess.hs	41;"	v	file:
 snd3	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/Parser.hs	13678;"	v
 snd4	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran/Parser.hs	13682;"	v
@@ -3345,7 +3346,7 @@ srcColumn	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran
 srcFilename	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	34;"	v
 srcLine	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	35;"	v
 srcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/language-fortran/src/Language/Fortran.hs	324;"	v
-srcSpanCompare	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	150;"	v	file:
+srcSpanCompare	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	161;"	v	file:
 srcSpanInSrcSpan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	386;"	v
 srcSpanInSrcSpanRange	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	383;"	v
 srcSpanLineCount	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	362;"	v
@@ -3432,27 +3433,27 @@ tupleTableElementGreaterThan	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortr
 tupleTableNotEmpty	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/TupleTable.hs	73;"	v
 updateFStmtLst	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/BufferTransferAnalysis.hs	267;"	v	file:
 updateFStmtLstInMainAst	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/BufferTransferAnalysis.hs	258;"	v	file:
-updateIterLoopVars	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	249;"	v	file:
+updateIterLoopVars	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	253;"	v	file:
 usageError	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Main.hs	179;"	v
 usesVarName	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	512;"	v
 usesVarName_list	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	507;"	v
 utf8Encode	templates/wrappers.hs	27;"	v	file:
-varAccessAnalysis_readsAfter	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	461;"	v	file:
-varAccessAnalysis_readsAfter'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	465;"	v	file:
-varAccessAnalysis_writesAfter	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	450;"	v	file:
-varAccessAnalysis_writesAfter'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	454;"	v	file:
+varAccessAnalysis_readsAfter	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	474;"	v	file:
+varAccessAnalysis_readsAfter'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	478;"	v	file:
+varAccessAnalysis_writesAfter	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	463;"	v	file:
+varAccessAnalysis_writesAfter'	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	467;"	v	file:
 varBufVar	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	93;"	v
 varBufVarName	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	96;"	v
-varHasSrcBefore	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	431;"	v	file:
-varNameCheck	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	398;"	v	file:
+varHasSrcBefore	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	444;"	v	file:
+varNameCheck	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Transformer.hs	402;"	v	file:
 varNameListStr	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	545;"	v
 varNameStr	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/LanguageFortranTools.hs	542;"	v
-varNameUsed	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	502;"	v	file:
-varReadAfterSrcLoc	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	195;"	v	file:
-varReadInRange	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	212;"	v	file:
+varNameUsed	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarDependencyAnalysis.hs	506;"	v	file:
+varReadAfterSrcLoc	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	206;"	v	file:
+varReadInRange	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	223;"	v	file:
 varSizeVar	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	87;"	v
 varSizeVarName	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/CodeEmitterUtils.hs	90;"	v
-varWrittenAfterSrcLoc	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	189;"	v	file:
-varWrittenInRange	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	218;"	v	file:
+varWrittenAfterSrcLoc	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	200;"	v	file:
+varWrittenInRange	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/VarAccessAnalysis.hs	229;"	v	file:
 verboseFlag	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Main.hs	141;"	v
 warning	/Users/wim/SoC_Research/Code/Git/AutoParallel-Fortran/src/Warning.hs	12;"	v

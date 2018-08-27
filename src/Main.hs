@@ -85,6 +85,10 @@ main = do
     let cppDFlags = DMap.findWithDefault [] cppDefineFlag argMap
     let cppXFlags = DMap.findWithDefault [] cppExcludeFlag argMap
 
+    let loopFusion = case DMap.lookup noLoopFusionFlag argMap of
+                        Just a -> False
+                        Nothing -> True
+
     -- < STEP 2 : Parsing >
     parsedPrograms_stashes <- mapM (parseFile cppDFlags cppXFlags fixedForm) filenames
     let
@@ -101,7 +105,9 @@ main = do
 
     -- < STEP 5 : Try to fuse the parallelised loops as much as possible (on a per-subroutine basis) >    
     -- (SubroutineTable, [(String, String)])
-    let (combinedKernelSubroutines, combAnnotations) = foldl (combineKernelProgUnit_foldl loopFusionBound) (parallelisedSubroutines, []) subroutineNames
+    let (combinedKernelSubroutines, combAnnotations) = if loopFusion 
+        then foldl (combineKernelProgUnit_foldl loopFusionBound) (parallelisedSubroutines, []) subroutineNames
+        else (parallelisedSubroutines, parAnnotations) 
 
     -- < STEP 6a : create annotation listings >
     let annotationListings = map (combineAnnotationListings_map parAnnotations) combAnnotations                                                         
@@ -147,9 +153,9 @@ cppDefineFlag = "-D"
 cppExcludeFlag = "-X"
 fixedFormFlag = "-ffixed-form"
 platFlag = "-plat"
+noLoopFusionFlag = "-N"
 
-
-flags = [filenameFlag, outDirectoryFlag, loopFusionBoundFlag, platFlag, cppDefineFlag, cppExcludeFlag, verboseFlag, mainFileFlag, ioWriteRoutineFlag, ioReadRoutineFlag, fixedFormFlag]
+flags = [filenameFlag, outDirectoryFlag, loopFusionBoundFlag, platFlag, cppDefineFlag, cppExcludeFlag, verboseFlag, mainFileFlag, ioWriteRoutineFlag, ioReadRoutineFlag, fixedFormFlag,noLoopFusionFlag]
 
 processArgs :: [String] -> DMap.Map String [String]
 processArgs [] = usageError
