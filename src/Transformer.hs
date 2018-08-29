@@ -46,11 +46,17 @@ paralleliseProgUnit_foldl
                     LoopAnalysis::paralleliseLoop_map
                 paralleliseLoop_reduce
                     LoopAnalysis::analyseLoop_reduce
-                paralleliseLoop_reduceWithOuterIteration    
+                paralleliseLoop_reduceWithOuterIteration                    
 
 This works on a full subroutine. So in principle after this is done, the var decls should be fine.
 data SubroutineTable = DMap.Map String (ProgUnit Anno, String)
 annoListing :: [(String, String)] : append (filename, parAnno) where parAnno contains all of the parallelising errors for this particular run of the compiler.
+
+combineKernelProgUnit_foldl
+    CombineKernels::combineKernelsProgUnit
+        LanguageFortranTools::removeAllAnnotations
+    compileAnnotationListing
+
 -}    
 paralleliseProgUnit_foldl :: [String] -> SubroutineTable -> (SubroutineTable, [(String, String)]) -> String -> (SubroutineTable, [(String, String)])
 paralleliseProgUnit_foldl ioWriteSubroutines originalTable (accumSubTable, annoListing) subName = (newSubTable, annoListing ++ [(filename, parAnno)])
@@ -355,7 +361,7 @@ getLoopConditions codeSeg = case codeSeg of
         OpenCLReduce _ _ _ _ loopVars iterLoopVars _ _ -> loopVars -- WV20170426
         _ -> []
 
---    Traverses the AST and prooduces a single string that contains all of the parallelising errors for this particular run of the compiler.
+--    Traverses the AST and produces a single string that contains all of the parallelising errors for this particular run of the compiler.
 --    compileAnnotationListing traverses the AST and applies getAnnotations to AST nodes. The resulting string is then output to the user.
 compileAnnotationListing codeSeg = everything (++) (mkQ [] getAnnotations) codeSeg
 

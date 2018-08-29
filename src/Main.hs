@@ -70,9 +70,16 @@ main = do
     let outDirectory = case DMap.lookup outDirectoryFlag argMap of
                         Just dirList -> head dirList
                         Nothing -> "./"
-    let loopFusionBound = case DMap.lookup loopFusionBoundFlag argMap of
-                        Just bound -> Just (read (head bound) :: Float)
-                        Nothing -> Nothing
+    let noLoopFusion = case DMap.lookup noLoopFusionFlag argMap of
+                        Just a -> True
+                        Nothing -> False
+    let 
+        loopFusionBound :: Maybe Float
+        loopFusionBound = if noLoopFusion 
+                            then Just 0.0 
+                            else case DMap.lookup loopFusionBoundFlag argMap of
+                                    Just bound -> Just (read (head bound) :: Float)
+                                    Nothing -> Nothing
     let verbose = case DMap.lookup verboseFlag argMap of
                         Just a -> True
                         Nothing -> False
@@ -84,10 +91,6 @@ main = do
                 Nothing -> GPU -- defaults to GPU
     let cppDFlags = DMap.findWithDefault [] cppDefineFlag argMap
     let cppXFlags = DMap.findWithDefault [] cppExcludeFlag argMap
-
-    let loopFusion = case DMap.lookup noLoopFusionFlag argMap of
-                        Just a -> False
-                        Nothing -> True
 
     -- < STEP 2 : Parsing >
     parsedPrograms_stashes <- mapM (parseFile cppDFlags cppXFlags fixedForm) filenames
@@ -105,9 +108,7 @@ main = do
 
     -- < STEP 5 : Try to fuse the parallelised loops as much as possible (on a per-subroutine basis) >    
     -- (SubroutineTable, [(String, String)])
-    let (combinedKernelSubroutines, combAnnotations) = if loopFusion 
-        then foldl (combineKernelProgUnit_foldl loopFusionBound) (parallelisedSubroutines, []) subroutineNames
-        else (parallelisedSubroutines, parAnnotations) 
+    let (combinedKernelSubroutines, combAnnotations) = foldl (combineKernelProgUnit_foldl loopFusionBound) (parallelisedSubroutines, []) subroutineNames
 
     -- < STEP 6a : create annotation listings >
     let annotationListings = map (combineAnnotationListings_map parAnnotations) combAnnotations                                                         

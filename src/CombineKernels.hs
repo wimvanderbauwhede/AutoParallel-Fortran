@@ -21,6 +21,12 @@ import VarDependencyAnalysis     (loopCarriedDependencyCheck)
 
 
 combineKernelsProgUnit bound codeSeg = everywhere (mkT (combineKernelsBlock bound)) codeSeg
+-- combineKernelsBlock
+--  combineNestedKernels
+--  combineAdjacentKernels
+--      attemptCombineAdjacentMaps
+--          loopVariableCombinationConditions
+
 
 -- WV: apparently unused
 combineKernels :: Maybe Float -> Program Anno -> Program Anno
@@ -66,7 +72,12 @@ combineNestedKernels codeSeg = case codeSeg of
                     otherwise -> codeSeg
 
 --    In the case that two maps are adjacent to one and other and their iterator conditions are compatible, the kernels can be combined.
-combineAdjacentKernels :: Maybe(Float) -> Fortran Anno -> Fortran Anno
+{-
+The function first checks if there are two adjacent blocks where the second is an FSeq that contains yet another block
+If the fortran1 block is an OpenCLMap, then it checks if fortran2 is also an OpenCLMap. If so it calls attemptCombineAdjacentMaps 
+It also checks for the case of an FSeq with just two blocks
+-}
+combineAdjacentKernels :: Maybe Float -> Fortran Anno -> Fortran Anno
 combineAdjacentKernels bound codeSeg = case codeSeg of
                     (FSeq anno1 src1 fortran1 (FSeq anno2 _ fortran2 fortran3)) -> case fortran1 of
                             OpenCLMap _ src2 _ _ _ _ _ -> case fortran2 of -- WV20170426
@@ -92,12 +103,12 @@ combineAdjacentKernels bound codeSeg = case codeSeg of
 
 --    This function constructs the combined adjacent maps. In the case that the iterator conditions differ slightly, it adds conditional constructs around appropriate
 --    parts of the body of the kernels.
-attemptCombineAdjacentMaps :: Maybe(Float) -> Fortran Anno -> Fortran Anno -> Maybe(Fortran Anno)
+attemptCombineAdjacentMaps :: Maybe Float -> Fortran Anno -> Fortran Anno -> Maybe (Fortran Anno)
 attemptCombineAdjacentMaps     bound
                             (OpenCLMap anno1 src1 reads1 writes1 loopVs1 iterLoopVs1 fortran1)  -- WV20170426
                             (OpenCLMap anno2 src2 reads2 writes2 loopVs2 iterLoopVs2 fortran2) -- WV20170426    
                                 | resultLoopVars == []     = Nothing -- || loopDependencyBool                                                                                                           
-                                | otherwise = Just(resultantMap)
+                                | otherwise = Just resultantMap
                                     where
                                         newSrc = generateSrcSpanMerge src1 src2
                                         combinedReads = listRemoveDuplications $ reads1 ++ reads2
@@ -125,15 +136,18 @@ attemptCombineAdjacentMaps     bound
 --    iterator defined because they can represent nested loops. The function checks that the iterator conditions in each object match, IN ORDER. For example,
 --    for i:10, j:20, k:30 would match to for i:10, j:20, k:30 but not to for j:20,i:10,k:30
 --    Handles loops with slightly different end points but not loop iterators having different names.
-loopVariableCombinationConditions :: Maybe(Float) 
+--    WV 2018-08-28 I overload bound with a special value 0.0 to make loop fusion fail
+loopVariableCombinationConditions :: Maybe Float
                                     -> [(VarName Anno, Expr Anno, Expr Anno, Expr Anno)] 
                                     -> [(VarName Anno, Expr Anno, Expr Anno, Expr Anno)] 
-                                    -> Maybe([Expr Anno], [Expr Anno], [(VarName Anno, Expr Anno, Expr Anno, Expr Anno)])
+                                    -> Maybe ([Expr Anno], [Expr Anno], [(VarName Anno, Expr Anno, Expr Anno, Expr Anno)])
 loopVariableCombinationConditions     bound
                                     ((xVarName, xStart, xEnd, xStep):xs) 
-                                    ((yVarName, yStart, yEnd, yStep):ys)     |    sameVarNames && sameStart && sameStep && sameEnd && nextCombines = Just(xNext,yNext, [loopVars] ++ loopVarsNext)
-                                                                            |    sameVarNames && sameStart && sameStep && endLinearFunction && nextCombines = Just(predicatListX ++ xNext, predicatListY ++ yNext, [loopVars] ++ loopVarsNext)
-                                                                            |    otherwise = Nothing
+                                    ((yVarName, yStart, yEnd, yStep):ys)    
+                                          |    bound == Just 0.0 = Nothing
+                                          |    sameVarNames && sameStart && sameStep && sameEnd && nextCombines = Just (xNext,yNext, [loopVars] ++ loopVarsNext)
+                                          |    sameVarNames && sameStart && sameStep && endLinearFunction && nextCombines = Just (predicatListX ++ xNext, predicatListY ++ yNext, [loopVars] ++ loopVarsNext)
+                                          |    otherwise = Nothing
                                         where
                                             sameVarNames = xVarName == yVarName
                                             sameStart = (everywhere (mkT standardiseSrcSpan) xStart) == (everywhere (mkT standardiseSrcSpan) yStart)
