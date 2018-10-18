@@ -13,6 +13,8 @@ import qualified Data.Map as DMap
 
 type KernelArgsIndexMap = DMap.Map (VarName Anno) Int
 
+constOne = generateIntConstant 1
+constZero = generateIntConstant 0
 emitDeclStr typestr varstr =  typestr++" :: " ++ outputExprFormatting (generateVar (VarName nullAnno varstr)) ++ "\n"
 localMemSpaceAcc = " !$ACC MemSpace local"
 globalMemSpaceAcc = "!$ACC MemSpace global"

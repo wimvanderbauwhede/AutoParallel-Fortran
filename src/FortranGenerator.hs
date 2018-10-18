@@ -202,7 +202,7 @@ generateKernelDeclarations prog (OpenCLReduce _ _ r w _ _ rv _) = (readDecls, wr
                     writtenDecls = map (\x -> fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (Out nullAnno) prog)) writtenArgs
                     readWriteDecls = map (\x -> fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (InOut nullAnno) prog)) readWriteArgs
 
-                    globalReductionDecls = (map (\x -> declareGlobalReductionArray x (nunitsVar) (prog)) reductionVarNames)
+                    globalReductionDecls = (map (\x -> declareGlobalReductionArray x nunitsVar prog) reductionVarNames)
 
                     readWriteDecls_withReductions = readWriteDecls ++ globalReductionDecls
 generateKernelDeclarations prog (OpenCLBufferRead _ _ varName) = (readDecls, [], [])

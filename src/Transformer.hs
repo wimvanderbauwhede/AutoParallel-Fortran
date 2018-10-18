@@ -32,7 +32,7 @@ import LanguageFortranTools
 import ConstantFolding             (foldConstants)
 import LoopAnalysis             (analyseLoop_map, analyseLoop_reduce, getErrorAnnotations, getReductionVarNames, getReads, getWrites)
 import MiniPP (miniPPF)    
--- import FortranSynthesiser ( produceCode_progUnit )
+
 {-
 WV:
 paralleliseProgUnit_foldl
@@ -67,7 +67,7 @@ paralleliseProgUnit_foldl ioWriteSubroutines originalTable (accumSubTable, annoL
             progUnitfoldedConstants = foldConstants progUnit
             accessAnalysis = analyseAllVarAccess_progUnit ioWriteSubroutines progUnit
             parallelisedProgUnit = everywhere (mkT (paralleliseBlock filename originalTable accessAnalysis)) progUnitfoldedConstants
-            parAnno = compileAnnotationListing parallelisedProgUnit -- (warning  (show parallelisedProgUnit)) -- (produceCode_progUnit DMap.empty DMap.empty ([],"") "kernel_module" "superkernel" [] parallelisedProgUnit)))
+            parAnno = compileAnnotationListing parallelisedProgUnit 
             newSubTable = DMap.insert subName (MkSubRec parallelisedProgUnit filename []) accumSubTable
 
 -- This one merges loops so again it should not touch the vardecls in the sub

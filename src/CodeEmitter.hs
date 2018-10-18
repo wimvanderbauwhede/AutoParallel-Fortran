@@ -48,7 +48,7 @@ emit specified cppDFlags cppXFlags plat fixedForm programs_verboseArgs
                 let initModuleFilename = specified ++ "/" ++ (initModuleName moduleName) ++ ".f95"
 
                 let (superKernel_module, allKernelArgsMap) = synthesiseSuperKernelModule moduleName superkernelName programs_verboseArgs allKernels
-                let initModule = synthesiseInitModule moduleName superkernelName programs_verboseArgs allKernelArgsMap allKernels orig_asts
+                let initModule = synthesiseInitModule plat moduleName superkernelName programs_verboseArgs allKernelArgsMap allKernels orig_asts
                 -- WV: TODO: use orig_asts
                 host_code <- mapM (produceCode_prog allKernelArgsMap argTranslations cppDFlags cppXFlags plat fixedForm moduleName superkernelName) (zip programs_optimisedBuffers modVarTables)
                 main_code <- produceCode_prog allKernelArgsMap argTranslations cppDFlags cppXFlags plat fixedForm moduleName superkernelName ( (mainAst , mainFilename), mainModVarTable) 
