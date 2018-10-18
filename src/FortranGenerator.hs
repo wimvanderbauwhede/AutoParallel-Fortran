@@ -47,6 +47,7 @@ generateWorkGroupReduction_assgs reductionVars redIter (Assg _ _ expr1 expr2)   
                         localReductionVar = generateVar (generateLocalReductionVar (head ((extractVarNames expr1) ++[VarName nullAnno "DUMMY12"]) ))
 generateWorkGroupReduction_assgs reductionVars redIter codeSeg = []
 
+-- This is the reduction code that typically goes inside the host-side loop over the number of compute units
 generateFinalHostReduction :: [VarName Anno] -> VarName Anno -> Fortran Anno -> Fortran Anno
 generateFinalHostReduction reductionVars redIter codeSeg  = resultantCode
                     where
@@ -68,7 +69,7 @@ generateFinalHostReduction_assgs reductionVars redIter (Assg _ _ expr1 expr2)   
 generateFinalHostReduction_assgs reductionVars redIter codeSeg = []
 
 generateGlobalWorkItemsExpr :: [(VarName Anno, Expr Anno, Expr Anno, Expr Anno)] -> Expr Anno
-generateGlobalWorkItemsExpr loopVars = generateProductExpr_list (map (generateLoopIterationsExpr) loopVars)
+generateGlobalWorkItemsExpr loopVars = generateProductExpr_list (map generateLoopIterationsExpr loopVars)
 
 generateRelVar :: VarName Anno -> Expr Anno
 generateRelVar (VarName anno str) = generateVar (VarName anno (str ++ "_rel"))

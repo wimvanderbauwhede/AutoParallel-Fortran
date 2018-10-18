@@ -377,12 +377,12 @@ produceCode_fortran prog tabs originalLines codeSeg = case codeSeg of
                         OpenCLBufferRead _ _ _ -> synthesiseOpenCLBufferRead prog tabs originalLines codeSeg
                         OpenCLBufferWrite _ _ _ -> synthesiseOpenCLBufferWrite prog tabs originalLines codeSeg
                         OpenCLMap _ _ _ _ _ _ _ -> (synthesiseKernelCall prog tabs codeSeg) ++ (commentSeparator "END")  -- WV20170426
-                        OpenCLReduce _ _ _ _ _ _ rv f -> (synthesiseKernelCall prog tabs codeSeg) -- WV20170426
+                        OpenCLReduce _ _ _ _ _ _ rv fv -> (synthesiseKernelCall prog tabs codeSeg) -- WV20170426
                                                                 ++ (mkQ "" (produceCode_fortran prog tabs originalLines) hostReductionLoop) ++ "\n" ++ (commentSeparator "END")
                                 where 
                                     reductionVarNames = map (\(varname, expr) -> varname) rv
                                     r_iter = generateReductionIterator
-                                    hostReduction = generateFinalHostReduction reductionVarNames r_iter f
+                                    hostReduction = generateFinalHostReduction reductionVarNames r_iter fv
                                     hostReductionLoop = generateLoop r_iter (generateIntConstant 1) nunitsVar hostReduction                                    
                         Call _ _ _ _ -> synthesiseCall prog tabs originalLines codeSeg
                         FSeq _ _ fortran1 fortran2 -> (mkQ "" (produceCode_fortran prog tabs originalLines) fortran1) ++ (mkQ "" (produceCode_fortran prog tabs originalLines) fortran2)
@@ -1002,7 +1002,7 @@ getMissingArgDeclStrs missingArgs_strs originalLines tabs =
 
 --    BASIC STEPS
 --    -    Produce subroutine header with appropriate arguments 
---    -    Deteremine imports and produce 'using' statements 
+--    -    Determine imports and produce 'using' statements 
 --    -    Produce declarations for new variables that are introduced for OpenCL's sake.
 --    -    Get declarations for the existing variables from the original srouce
 --    -    Declare variables that are used directly by the tree based reduction
@@ -1032,8 +1032,8 @@ synthesiseOpenCLReduce plat inTabs originalLines orig_ast programInfo (OpenCLRed
                                        ++ "\n" ++ localDeclStrs ++ "\n"                                                                            
                                        ++ tabs ++ "! " ++ compilerName ++ ": Synthesised loop variable decls\n"
                                        ++ range_rel_decls_str
-                                       ++ "\n"
-                                       ++ tabs ++ chunk_sizeDeclaration
+                                       ++ "\n"                                       
+                                       ++ (if plat == FPGA then "" else (tabs ++ chunk_sizeDeclaration))
                                        ++ tabs ++ localIdDeclaration
                                        ++ tabs ++ localIdFortranDeclaration
                                        ++ tabs ++ groupIdDeclaration
@@ -1053,12 +1053,14 @@ synthesiseOpenCLReduce plat inTabs originalLines orig_ast programInfo (OpenCLRed
                                        ++ writtenDeclStr
                                        ++ readWriteDeclStr
                                        ++ "\n"
+                                       ++ (if plat == FPGA then "" else (""
                                        ++ "#if NTH > 1\n"
                                        ++ tabs ++ "! Arrays prefixed with \'local_\' should be declared using the \'__local\' modifier in C kernel version\n"
                                        ++ workGroup_reductionArraysDeclStr
-                                       ++ "#endif\n"
+                                       ++ "#endif\n"))
                                        ++ local_reductionVarsDeclatationStr
                                        ++ "\n"
+                                       ++ (if plat == FPGA then "" else (""
                                        ++ tabs ++ groupIdInitialisation
                                        ++ tabs ++ globalIdInitialisation
                                        ++ "#if NTH > 1\n"
@@ -1067,7 +1069,7 @@ synthesiseOpenCLReduce plat inTabs originalLines orig_ast programInfo (OpenCLRed
                                        ++ "\n" ++ tabs ++ "! not 0 like other OpenCL supporting languages\n"
                                        ++ tabs ++ localIdFortranInitialisation
                                        ++ "#endif\n"
-                                       ++ tabs ++ groupIdFortranInitialisation
+                                       ++ tabs ++ groupIdFortranInitialisation ))
                                        ++ (if plat == GPU then
                                               tabs ++ "nthreads = NUNITS*NTH\n"
                                            ++ tabs ++ "ndrange = "++ globalWorkItems_str ++"\n"
@@ -1078,13 +1080,15 @@ synthesiseOpenCLReduce plat inTabs originalLines orig_ast programInfo (OpenCLRed
                                            ++ tabs ++ "end if\n"      
                                            ++ tabs ++ "chunk_size = ndrange_padded / NUNITS\n"
                                         else "")
-
+                                       ++ (if plat == FPGA then 
+                                               tabs ++ localChunkSize_FPGA_str 
+                                              else ( "" 
                                        ++ "#if NTH > 1\n"
                                        ++ tabs ++ (if plat == GPU then "local_chunk_size = chunk_size / NTH\n" else localChunkSize_GPU_str)
                                        ++ "#else\n"
                                        ++ tabs ++ (if plat == GPU then "local_chunk_size = chunk_size\n" else localChunkSize_CPU_str)
-                                       ++ "#endif\n"
-                                       ++ tabs ++ (if plat == CPU then startPosition_str else startPosition_str') ++ "\n"
+                                       ++ "#endif\n" ))
+                                       ++ tabs ++ (if plat == CPU  then startPosition_str else if plat == FPGA then startPosition_str'' else startPosition_str') ++ "\n"
                                        ++ local_reductionVarsInitStr
                                        ++ "\n"
                                        ++ (if plat == GPU then
@@ -1093,6 +1097,9 @@ synthesiseOpenCLReduce plat inTabs originalLines orig_ast programInfo (OpenCLRed
                                            (mkQ "" (produceCode_fortran programInfo tabs originalLines) workItem_loop)
                                           )
                                        ++ "\n"
+                                       ++ (if plat == FPGA then
+                                               ""
+                                               else (""
                                        ++ "#if NTH > 1\n"
                                        ++ workGroup_reductionArraysInitStr
                                        ++ "\n"
@@ -1102,7 +1109,8 @@ synthesiseOpenCLReduce plat inTabs originalLines orig_ast programInfo (OpenCLRed
                                        ++ "\n"
                                        ++ local_reductionVarsInitStr
                                        ++ (mkQ "" (produceCode_fortran programInfo (tabs) originalLines) workGroup_loop)
-                                       ++ "#endif\n"
+                                       ++ "#endif\n" ))
+
                                        ++ global_reductionArraysAssignmentStr
                                        ++ "\n"
                                        ++ inTabs ++ "end subroutine " ++ kernelName
@@ -1199,12 +1207,16 @@ synthesiseOpenCLReduce plat inTabs originalLines orig_ast programInfo (OpenCLRed
                                        (generateDivisionExpr
                                                (generateGlobalWorkItemsExpr l)
                                            nunitsVar)
+           -- for FPGA
+           localChunkSize_FPGA_assg = generateAssgCode localChunkSize (generateGlobalWorkItemsExpr l)
            localChunkSize_GPU_str = synthesiseAssg programInfo inTabs originalLines localChunkSize_GPU_assg
            localChunkSize_CPU_str = synthesiseAssg programInfo inTabs originalLines localChunkSize_CPU_assg
+           localChunkSize_FPGA_str = synthesiseAssg programInfo inTabs originalLines localChunkSize_FPGA_assg
 
            startPosition_str = (outputExprFormatting startPosition) ++ " = " ++ (outputExprFormatting localChunkSize) ++
                " * " ++ (outputExprFormatting globalIdVar) ++ "\n"
            startPosition_str' =    (outputExprFormatting startPosition) ++ " = " ++ (outputExprFormatting chunk_size) ++ " * " ++ (outputExprFormatting groupIdVar)
+           startPosition_str'' =    (outputExprFormatting startPosition) ++ " = " ++ (outputExprFormatting (generateIntConstant 0))
            localChunkSize_str = outputExprFormatting localChunkSize
 
            reductionIterator = generateReductionIterator
@@ -1242,7 +1254,10 @@ synthesiseOpenCLReduce plat inTabs originalLines orig_ast programInfo (OpenCLRed
            workGroup_loop = generateLoop reductionIterator (generateIntConstant 1) nthVar workGroup_reductionCode
 
            global_reductionArrays = map (generateGlobalReductionArray) reductionVarNames
-           global_reductionArraysAssignmentStr = foldl (generateReductionArrayAssignment tabs groupIdFortranVar) "" (zip global_reductionArrays local_reductionVars)
+           global_reductionArraysAssignmentStr = if plat == FPGA then
+                   foldl (generateReductionArrayAssignment tabs (generateIntConstant 1) ) "" (zip global_reductionArrays local_reductionVars)
+               else
+                   foldl (generateReductionArrayAssignment tabs groupIdFortranVar) "" (zip global_reductionArrays local_reductionVars)
            
 -- WV
 removeIntent :: String -> String
