@@ -25,6 +25,7 @@ chunk_size_varname = VarName nullAnno "chunk_size"
 localMemBarrier = "call barrier(CLK_LOCAL_MEM_FENCE)\n"
 nthVar = generateVar (VarName nullAnno "NTH")
 nunitsVar = generateVar (VarName nullAnno "NUNITS")
+constOneVar  = generateVar (VarName nullAnno "1")
 numGroupsVarName = VarName nullAnno "num_groups"
 numGroupsVar = generateVar numGroupsVarName
 stateVarName = VarName nullAnno "state"
@@ -139,10 +140,10 @@ convertScalarToOneDimArray decl     |    isScalar = addDimension decl nothing on
 adaptForReadScalarDecls :: [VarName Anno] -> ([Decl Anno], [Decl Anno], [Decl Anno]) -> ([Decl Anno], [Decl Anno], [Decl Anno], Fortran Anno, [VarName Anno])
 adaptForReadScalarDecls allArgs (readDecls, writtenDecls, readWriteDecls)  = (finalReadDecls, writtenDecls, finalReadWriteDecls, ptrAssignments_fseq, allArgs_ptrAdaption)
         where
-            readScalars = map (removeIntentFromDecl) (filter (\x -> (getDeclRank x) == 0) readDecls)
+            readScalars = map removeIntentFromDecl (filter (\x -> (getDeclRank x) == 0) readDecls)
             readScalars_noParams = filter (\x ->not (containsParameterAttr x)) readScalars
-            readWriteScalars = map (removeIntentFromDecl) (filter (\x -> (getDeclRank x) == 0) readWriteDecls)
-            scalars = map (extractAssigneeFromDecl) (readScalars ++ readWriteScalars)
+            readWriteScalars = map removeIntentFromDecl (filter (\x -> (getDeclRank x) == 0) readWriteDecls)
+            scalars = map extractAssigneeFromDecl (readScalars ++ readWriteScalars)
 
             readDecls_noScalars = filter (\x -> (getDeclRank x) /= 0) readDecls -- listSubtract readDecls readScalars
             readWriteDecls_noScalars = filter (\x -> (getDeclRank x) /= 0) readWriteDecls --listSubtract readWriteDecls readWriteScalars
@@ -355,6 +356,17 @@ extractKernelArguments (OpenCLReduce _ _ r w l _ rv _) =
         args
         
 extractKernelArguments _ = []
+
+
+extractFoldKernelArgumentsFPGA (OpenCLReduce _ _ r w l _ rv _) = 
+    let
+       rvVarNames = map (fst) rv
+       read_written_red_vars = listRemoveDuplications ((listSubtract (r ++ w) rvVarNames) ++ (map (\x -> (fst x)) rv)) -- WV20170426
+       loopvars = map (\(v,_,_,_) -> v) l
+       args = filter (\elt -> not (elt `elem` loopvars)) read_written_red_vars
+    in       
+        args
+
 
 generateLocalReductionArray (VarName anno str) = VarName anno ("local_" ++ str ++ "_array")
 generateGlobalReductionArray (VarName anno str) = VarName anno ("global_" ++ str ++ "_array")

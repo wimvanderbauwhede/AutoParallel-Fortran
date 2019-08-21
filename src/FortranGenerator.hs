@@ -192,7 +192,7 @@ generateKernelDeclarations prog (OpenCLMap _ _ r w _ _ _) = (readDecls, writtenD
                     readWriteDecls = map (\x ->fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (InOut nullAnno) prog)) readWriteArgs
 generateKernelDeclarations prog (OpenCLReduce _ _ r w _ _ rv _) = (readDecls, writtenDecls, readWriteDecls_withReductions) -- WV20170426
                 where
-                    reductionVarNames = map (fst) rv
+                    reductionVarNames = map fst rv
 
                     readArgs = listSubtract (listSubtract r w) reductionVarNames
                     writtenArgs = listSubtract (listSubtract w r) reductionVarNames
@@ -201,8 +201,8 @@ generateKernelDeclarations prog (OpenCLReduce _ _ r w _ _ rv _) = (readDecls, wr
                     readDecls = map (\x -> fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (In nullAnno) prog)) readArgs
                     writtenDecls = map (\x -> fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (Out nullAnno) prog)) writtenArgs
                     readWriteDecls = map (\x -> fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (InOut nullAnno) prog)) readWriteArgs
-
-                    globalReductionDecls = (map (\x -> declareGlobalReductionArray x nunitsVar prog) reductionVarNames)
+                        
+                    globalReductionDecls = map (\x -> declareGlobalReductionArray x nunitsVar prog) reductionVarNames 
 
                     readWriteDecls_withReductions = readWriteDecls ++ globalReductionDecls
 generateKernelDeclarations prog (OpenCLBufferRead _ _ varName) = (readDecls, [], [])
@@ -211,6 +211,29 @@ generateKernelDeclarations prog (OpenCLBufferRead _ _ varName) = (readDecls, [],
 generateKernelDeclarations prog (OpenCLBufferWrite _ _ varName) = ([], writtenDecls, [])
                 where
                     writtenDecls = [(\x ->fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (Out nullAnno) prog)) varName]
+
+
+generateKernelDeclarationsFPGA prog (OpenCLReduce _ _ r w _ _ rv _) = (readDecls, writtenDecls, readWriteDecls) -- WV20170426
+                where
+                    reductionVarNames = map fst rv
+
+                    readArgs = listSubtract (listSubtract r w) reductionVarNames -- r - w - rv
+                    writtenArgs = listSubtract (listSubtract w r) reductionVarNames -- w - r - rv
+                    readWriteArgs = listSubtract (listIntersection w r) reductionVarNames -- w ^ r - rv
+
+                    -- readArgs =  listSubtract r w
+                    -- writtenArgs = listSubtract w r
+                    -- readWriteArgs = listIntersection w r
+
+                    readDecls = map (\x -> fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (In nullAnno) prog)) readArgs
+                    writtenDecls = map (\x -> fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (Out nullAnno) prog)) writtenArgs
+                    readWriteDecls = map (\x -> fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (InOut nullAnno) prog)) (readWriteArgs++reductionVarNames)
+
+                    -- globalReductionDecls = map (\x -> declareGlobalReductionArray x nunitsVar prog) reductionVarNames
+
+                    -- readWriteDecls_withReductions = readWriteDecls ++ globalReductionDecls
+
+generateKernelDeclarationsFPGA prog node = generateKernelDeclarations prog node
 
 adaptOriginalDeclaration_intent :: VarName Anno -> IntentAttr Anno -> Program Anno -> Maybe(Decl Anno)
 adaptOriginalDeclaration_intent varname intent program = case decl_list of

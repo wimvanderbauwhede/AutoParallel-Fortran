@@ -141,7 +141,8 @@ main = do
     -- WV: added parsedSubroutines
     -- WV: This is a bit strange, to deal with the kernel and host-side code in one step
     emit outDirectory cppDFlags cppXFlags plat fixedForm fileCoordinated_parallelisedList fileCoordinated_bufferOptimisedPrograms argTranslations (newMainAst, mainFilename) [] [] parsedSubroutines (mainStash,stashes) (mainModuleVarTable,moduleVarTables)-- < STEP 8 > 
-
+    print "DONE"
+    
 filenameFlag = "-modules"
 outDirectoryFlag = "-out"
 loopFusionBoundFlag = "-lfb"
