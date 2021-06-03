@@ -50,7 +50,7 @@ type VarAccessRecord = ([SrcSpan],     [SrcSpan])
 
 type VarAccessRecordWV = ( [(SrcSpan,Expr Anno)], [(SrcSpan, Expr Anno)] )
     
--- WV: this map proveds all read and write locations for a local variable
+-- WV: this map provides all read and write locations for a local variable
 type LocalVarAccessAnalysis = DMap.Map (VarName Anno) VarAccessRecord
 -- WV: this map provides the expression(s) defining the local variable, I guess, so this would be assignments and should be args of subcalls with intent Out or InOut
 type LocalVarValueAnalysis = DMap.Map (VarName Anno) [(SrcSpan, Expr Anno)]
@@ -483,10 +483,10 @@ varAccessAnalysis_readsAfter' (_, SrcLoc _ line_end _) accessAnalysis accumAnaly
 
 checkHangingReads :: LocalVarAccessAnalysis -> VarName Anno -> Bool
 checkHangingReads analysis varname = case earliestRead of
-                                                        Just r ->    case earliestWrite of
-                                                                        Just w -> not (checkSrcSpanBefore_line w r)
-                                                                        Nothing -> True
-                                                        Nothing ->    False
+                                                        Just r ->    case earliestWrite of 
+                                                                        Just w -> not (checkSrcSpanBefore_line w r) -- True if write after read
+                                                                        Nothing -> True -- because there was no write
+                                                        Nothing ->    False -- because there was no read
         where 
             (readSpans, writeSpans) = DMap.findWithDefault ([], []) varname analysis
             earliestRead = getEarliestSrcSpan readSpans

@@ -14,6 +14,7 @@ where
 import Warning
 
 import Control.Monad
+import Data.Maybe (fromMaybe,isJust,isNothing)
 import Data.Generics             (Data, Typeable, mkQ, mkT, gmapQ, gmapT, everything, everywhere)
 import Language.Fortran.Parser
 import Language.Fortran
@@ -22,7 +23,7 @@ import Data.List
 import System.Environment
 import System.Process
 import System.Directory
-import qualified Data.Map as DMap 
+import qualified Data.Map as DMap
 
 import SubroutineTable            (SubroutineTable,SubRec(..))
 import CombineKernels             (combineKernelsProgUnit)
@@ -31,7 +32,7 @@ import VarDependencyAnalysis     (VarDependencyAnalysis, analyseDependencies, lo
 import LanguageFortranTools
 import ConstantFolding             (foldConstants)
 import LoopAnalysis             (analyseLoop_map, analyseLoop_reduce, getErrorAnnotations, getReductionVarNames, getReads, getWrites)
-import MiniPP (miniPPF)    
+import MiniPP (miniPPF)
 
 {-
 WV:
@@ -57,7 +58,7 @@ combineKernelProgUnit_foldl
         LanguageFortranTools::removeAllAnnotations
     compileAnnotationListing
 
--}    
+-}
 paralleliseProgUnit_foldl :: [String] -> SubroutineTable -> (SubroutineTable, [(String, String)]) -> String -> (SubroutineTable, [(String, String)])
 paralleliseProgUnit_foldl ioWriteSubroutines originalTable (accumSubTable, annoListing) subName = (newSubTable, annoListing ++ [(filename, parAnno)])
         where
@@ -67,7 +68,7 @@ paralleliseProgUnit_foldl ioWriteSubroutines originalTable (accumSubTable, annoL
             progUnitfoldedConstants = foldConstants progUnit
             accessAnalysis = analyseAllVarAccess_progUnit ioWriteSubroutines progUnit
             parallelisedProgUnit = everywhere (mkT (paralleliseBlock filename originalTable accessAnalysis)) progUnitfoldedConstants
-            parAnno = compileAnnotationListing parallelisedProgUnit 
+            parAnno = compileAnnotationListing parallelisedProgUnit
             newSubTable = DMap.insert subName (MkSubRec parallelisedProgUnit filename []) accumSubTable
 
 -- This one merges loops so again it should not touch the vardecls in the sub
@@ -89,13 +90,13 @@ combineKernelProgUnit_foldl loopFusionBound (subTable, annoListing) subName = (n
 --    node. From here, the first call to 'isolateAndParalleliseForLoops' is made (again with generics) which recursively traverses the 'Fortran' nodes to
 --    find for loop that should be analysed
 paralleliseBlock :: String -> SubroutineTable -> VarAccessAnalysis -> Block Anno -> Block Anno
-paralleliseBlock filename subTable accessAnalysis block = gmapT (mkT (isolateAndParalleliseForLoops filename subTable accessAnalysis)) block
+paralleliseBlock filename subTable accessAnalysis = gmapT (mkT (isolateAndParalleliseForLoops filename subTable accessAnalysis))
 
 --    Function traverses the 'Fortran' nodes to find For loops. It calls 'paralleliseLoop' on identified for loops in a recusive way such that the most
 --    nested loops in a cluster are analysed first.
 isolateAndParalleliseForLoops :: String -> SubroutineTable -> VarAccessAnalysis -> Fortran Anno -> Fortran Anno
 isolateAndParalleliseForLoops filename subTable accessAnalysis inp = case inp of
-        For _ _ _ _ _ _ _ -> paralleliseLoop filename [] accessAnalysis subTable recusivelyAnalysedNode
+        For {} -> paralleliseLoop filename [] accessAnalysis subTable recusivelyAnalysedNode
             where
                 recusivelyAnalysedNode = gmapT (mkT (isolateAndParalleliseForLoops filename subTable accessAnalysis )) inp
         _ -> gmapT (mkT (isolateAndParalleliseForLoops filename subTable accessAnalysis)) inp
@@ -133,79 +134,74 @@ paralleliseLoop filename loopVars accessAnalysis subTable loop = transformedAst
                                     reduceWithOuterIterationAttempt_ast = snd reduceWithOuterIterationAttempt
                                     -- WV: TODO: if all these fail we should move the loop to the OpenCL device anyway, using a new OpenCLSeq node
 
-                                    transformedAst = case mapAttempt_bool of
-                                        True    ->  mapAttempt_ast
-                                        False     -> case reduceAttempt_bool of
-                                                    True     -> reduceAttempt_ast
-                                                    False    -> reduceWithOuterIterationAttempt_ast
-                                    
+                                    transformedAst
+                                      | mapAttempt_bool = mapAttempt_ast
+                                      | reduceAttempt_bool = reduceAttempt_ast
+                                      | otherwise = reduceWithOuterIterationAttempt_ast
+
 --    These functions are used to extract a list of varnames that are written to in a particular chunk of code. 
 --    WV: TODO: what about subroutine calls in the loop?
 extractWrites_query :: (Typeable p, Data p) => Fortran p -> [VarName p]
 extractWrites_query = everything (++) (mkQ [] extractWrites)
 
 extractWrites :: (Typeable p, Data p) => Fortran p -> [VarName p]
-extractWrites (Assg _ _ (Var _ _ list) _) = map (\(varname, exprs) -> varname) list
+extractWrites (Assg _ _ (Var _ _ list) _) = map (fst) list
 extractWrites _ = []
 
 --    Function is applied to sub-trees that are loops. It returns either a version of the sub-tree that uses new OpenCLMap nodes or the
 --    original sub-tree annotated with reasons why the loop cannot be mapped
 paralleliseLoop_map :: String -> Fortran Anno -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> SubroutineTable -> (Bool, Fortran Anno)
 paralleliseLoop_map filename loop loopVarNames nonTempVars prexistingVars dependencies accessAnalysis subTable
-                                    |    errors_map' == nullAnno     =    (True, appendAnnotation mapCode (compilerName ++ ": Map at " ++ errorLocationFormatting (srcSpan loop)) "")
-                                    |    otherwise                    =    (False, appendAnnotationMap loop errors_map')
-                                    where
-                                        loopWrites = extractWrites_query loop
+    |    errors_map' == nullAnno     =    (True, appendAnnotation mapCode (compilerName ++ ": Map at " ++ errorLocationFormatting (srcSpan loop)) "")
+    |    otherwise                    =    (False, appendAnnotationMap loop errors_map')
+    where
+        loopWrites = extractWrites_query loop
 -- WV: def:                                            analyseLoop_map  comment loopVars loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable codeSeg 
-                                        loopAnalysis = analyseLoop_map "Cannot map: " [] loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable loop
+        loopAnalysis = analyseLoop_map "Cannot map: " [] loopWrites nonTempVars prexistingVars accessAnalysis dependencies subTable loop
 
-                                        errors_map = getErrorAnnotations loopAnalysis
-                                        reads_map = getReads loopAnalysis
-                                        writes_map = getWrites loopAnalysis
+        errors_map = getErrorAnnotations loopAnalysis
+        reads_map = getReads loopAnalysis
+        writes_map = getWrites loopAnalysis
 
-                                        (loopCarriedDeps_bool, evaluated_bool, loopCarriedDeps) = loopCarriedDependencyCheck loop
+        (loopCarriedDeps_bool, evaluated_bool, loopCarriedDeps) = loopCarriedDependencyCheck loop
 
-                                        errors_map' = case loopCarriedDeps_bool of
-                                                            True -> case evaluated_bool of
-                                                                    True -> DMap.insert (outputTab ++ "Cannot map: Loop carried dependency detected:\n") 
-                                                                        (formatLoopCarriedDependencies loopCarriedDeps) errors_map
-                                                                    False -> DMap.insert (outputTab ++ "Cannot map: Loop carried dependency possible (not evaluated):\n") 
-                                                                        (formatLoopCarriedDependencies loopCarriedDeps) errors_map
-                                                            False -> errors_map
+        errors_map' = if loopCarriedDeps_bool then (if evaluated_bool then DMap.insert (outputTab ++ "Cannot map: Loop carried dependency detected:\n")
+                                                        (formatLoopCarriedDependencies loopCarriedDeps) errors_map else DMap.insert (outputTab ++ "Cannot map: Loop carried dependency possible (not evaluated):\n")
+                                                        (formatLoopCarriedDependencies loopCarriedDeps) errors_map) else errors_map
 
-                                        loopVariables = loopCondtions_query loop
-                                        startVarNames = foldl (\accum (_,x,_,_) -> accum ++ extractVarNames x) [] loopVariables
-                                        endVarNames = foldl (\accum (_,_,x,_) -> accum ++ extractVarNames x) [] loopVariables
-                                        stepVarNames = foldl (\accum (_,_,_,x) -> accum ++ extractVarNames x) [] loopVariables
+        loopVariables = loopCondtions_query loop
+        startVarNames = foldl (\accum (_,x,_,_) -> accum ++ extractVarNames x) [] loopVariables
+        endVarNames = foldl (\accum (_,_,x,_) -> accum ++ extractVarNames x) [] loopVariables
+        stepVarNames = foldl (\accum (_,_,_,x) -> accum ++ extractVarNames x) [] loopVariables
 
-                                        varNames_loopConditions = listSubtract (listRemoveDuplications (startVarNames ++ endVarNames ++ stepVarNames)) loopVarNames
-                                        containedLoopIteratorVarNames = (map (\(a, _, _, _) -> a) (loopCondtions_query loop))
+        varNames_loopConditions = listSubtract (listRemoveDuplications (startVarNames ++ endVarNames ++ stepVarNames)) loopVarNames
+        containedLoopIteratorVarNames = map (\(a, _, _, _) -> a) (loopCondtions_query loop)
 
-                                        reads_map_varnames = foldl (++) [] (map extractVarNames reads_map)
-                                        readArgs = listRemoveDuplications $ listSubtract reads_map_varnames containedLoopIteratorVarNames    -- List of arguments to kernel that are READ
-                                        -- readArgs = (listRemoveDuplications $ listSubtract reads_map_varnames (containedLoopIteratorVarNames ++ varNames_loopConditions)    )    -- List of arguments to kernel that are READ
-                                        
-                                        writes_map_varnames = foldl (++) [] (map extractVarNames writes_map)
-                                        writtenArgs = listRemoveDuplications $ listSubtract writes_map_varnames containedLoopIteratorVarNames     -- List of arguments to kernel that are WRITTEN
-                                        -- WV20170426
-                                        iterLoopVariables=[]
+        reads_map_varnames = concat (map extractVarNames reads_map)
+        readArgs = listRemoveDuplications $ listSubtract reads_map_varnames containedLoopIteratorVarNames    -- List of arguments to kernel that are READ
+        -- readArgs = (listRemoveDuplications $ listSubtract reads_map_varnames (containedLoopIteratorVarNames ++ varNames_loopConditions)    )    -- List of arguments to kernel that are READ
 
-                                        mapCode = OpenCLMap nullAnno (generateSrcSpan filename (srcSpan loop))     -- Node to represent the data needed for an OpenCL map kernel -- WV20170426
-                                            readArgs        -- List of arguments to kernel that are READ
-                                            writtenArgs     -- List of arguments to kernel that are WRITTEN
-                                            loopVariables    -- Loop variables of nested maps
-                                            iterLoopVariables -- WV20170426
-                                            (removeLoopConstructs_recursive loop) -- Body of kernel code
+        writes_map_varnames = concat (map extractVarNames writes_map)
+        writtenArgs = listRemoveDuplications $ listSubtract writes_map_varnames containedLoopIteratorVarNames     -- List of arguments to kernel that are WRITTEN
+        -- WV20170426
+        iterLoopVariables=[]
+
+        mapCode = OpenCLMap nullAnno (generateSrcSpan filename (srcSpan loop))     -- Node to represent the data needed for an OpenCL map kernel -- WV20170426
+            readArgs        -- List of arguments to kernel that are READ
+            writtenArgs     -- List of arguments to kernel that are WRITTEN
+            loopVariables    -- Loop variables of nested maps
+            iterLoopVariables -- WV20170426
+            (removeLoopConstructs_recursive loop) -- Body of kernel code
 
 --    Function is applied to sub-trees that are loops. It returns either a version of the sub-tree that uses new OpenCLReduce nodes or the
 --    original sub-tree annotated with reasons why the loop is not a reduction
 paralleliseLoop_reduce :: String -> Fortran Anno -> [VarName Anno] -> [VarName Anno]-> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> (Bool, Fortran Anno)
-paralleliseLoop_reduce filename loop loopVarNames nonTempVars prexistingVars dependencies accessAnalysis    
+paralleliseLoop_reduce filename loop loopVarNames nonTempVars prexistingVars dependencies accessAnalysis
                                     |     errors_reduce' == nullAnno     =    (True, appendAnnotation reductionCode' (compilerName ++ ": Reduction at " ++ errorLocationFormatting (srcSpan loop)) "")
                                     |    otherwise                    =    (False, appendAnnotationMap loop errors_reduce')
                                     where
                                         loopWrites = extractWrites_query loop
-                                        loopAnalysis = analyseLoop_reduce "Cannot reduce: " [] [] loopWrites nonTempVars prexistingVars dependencies accessAnalysis loop 
+                                        loopAnalysis = analyseLoop_reduce "Cannot reduce: " [] [] loopWrites nonTempVars prexistingVars dependencies accessAnalysis loop
                                         errors_reduce = getErrorAnnotations loopAnalysis
                                         reductionVarNames = getReductionVarNames loopAnalysis
                                         reads_reduce = getReads loopAnalysis
@@ -213,11 +209,7 @@ paralleliseLoop_reduce filename loop loopVarNames nonTempVars prexistingVars dep
 
                                         (loopCarriedDeps_bool, evaluated_bool, loopCarriedDeps) = loopCarriedDependencyCheck loop
 
-                                        errors_reduce' = case loopCarriedDeps_bool of
-                                                            True -> case evaluated_bool of
-                                                                    True -> DMap.insert (outputTab ++ "Cannot reduce: Loop carried dependency detected:\n") (formatLoopCarriedDependencies loopCarriedDeps) errors_reduce
-                                                                    False -> DMap.insert (outputTab ++ "Cannot reduce: Loop carried dependency possible (not evaluated):\n") (formatLoopCarriedDependencies loopCarriedDeps) errors_reduce
-                                                            False -> errors_reduce
+                                        errors_reduce' = if loopCarriedDeps_bool then (if evaluated_bool then DMap.insert (outputTab ++ "Cannot reduce: Loop carried dependency detected:\n") (formatLoopCarriedDependencies loopCarriedDeps) errors_reduce else DMap.insert (outputTab ++ "Cannot reduce: Loop carried dependency possible (not evaluated):\n") (formatLoopCarriedDependencies loopCarriedDeps) errors_reduce) else errors_reduce
 
 
                                         loopVariables = loopCondtions_query loop
@@ -226,17 +218,17 @@ paralleliseLoop_reduce filename loop loopVarNames nonTempVars prexistingVars dep
                                         stepVarNames = foldl (\accum (_,_,_,x) -> accum ++ extractVarNames x) [] loopVariables
 
                                         varNames_loopConditions = listSubtract (listRemoveDuplications (startVarNames ++ endVarNames ++ stepVarNames)) loopVarNames
-                                        containedLoopIteratorVarNames = (map (\(a, _, _, _) -> a) (loopCondtions_query loop))
+                                        containedLoopIteratorVarNames = map (\(a, _, _, _) -> a) (loopCondtions_query loop)
 
-                                        reads_map_varnames = foldl (++) [] (map extractVarNames reads_reduce)
-                                        readArgs = (listRemoveDuplications $ listSubtract reads_map_varnames (varNames_loopConditions)    )    -- List of arguments to kernel that are READ
+                                        reads_map_varnames = concat (map extractVarNames reads_reduce)
+                                        readArgs = listRemoveDuplications $ listSubtract reads_map_varnames varNames_loopConditions -- List of arguments to kernel that are READ
                                         -- readArgs = (listRemoveDuplications $ listSubtract reads_map_varnames (containedLoopIteratorVarNames ++ varNames_loopConditions)    )    -- List of arguments to kernel that are READ
-                                        
-                                        writes_map_varnames = foldl (++) [] (map extractVarNames writes_reduce)
-                                        writtenArgs = (listRemoveDuplications $ listSubtract writes_map_varnames containedLoopIteratorVarNames)     -- List of arguments to kernel that are WRITTEN
-                                        
-                                        allReductionVarNames = (foldl (\accum item -> accum ++ extractVarNames item) [] reductionVarNames)
-                                        reductioNVarInfo = (listRemoveDuplications (foldl (\accum item -> accum ++ [(item, getValueAtSrcSpan item (srcSpan loop) accessAnalysis)] ) [] allReductionVarNames))
+
+                                        writes_map_varnames = concat (map extractVarNames writes_reduce)
+                                        writtenArgs = listRemoveDuplications $ listSubtract writes_map_varnames containedLoopIteratorVarNames -- List of arguments to kernel that are WRITTEN
+
+                                        allReductionVarNames = foldl (\accum item -> accum ++ extractVarNames item) [] reductionVarNames
+                                        reductioNVarInfo = listRemoveDuplications (foldl (\accum item -> accum ++ [(item, getValueAtSrcSpan item (srcSpan loop) accessAnalysis)] ) [] allReductionVarNames)
                                         -- WV20170426
                                         iterLoopVariables=[]
                                         reductionCode' =  reductionCode -- (miniPPF reductionCode)
@@ -262,35 +254,34 @@ updateIterLoopVars loopVarNames n = n
 
 -- WV20170426 The addition of these loop variables is a bit ad-hoc because 
 paralleliseLoop_reduceWithOuterIteration :: String -> Fortran Anno -> Maybe (Fortran Anno) -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> [VarName Anno] -> VarDependencyAnalysis -> VarAccessAnalysis -> (Bool, Fortran Anno)
-paralleliseLoop_reduceWithOuterIteration filename loop Nothing loopVarNames loopVarNames' nonTempVars prexistingVars dependencies accessAnalysis     
-    |    nextFor_maybe == Nothing = (False, loop')                                                                                                                             
+paralleliseLoop_reduceWithOuterIteration filename loop Nothing loopVarNames loopVarNames' nonTempVars prexistingVars dependencies accessAnalysis
+    |    isNothing nextFor_maybe = (False, loop')
     |    otherwise = (reduceWithOuterIterationAttempt_bool, newAst')
         where
             loop'' = everywhere (mkT (updateIterLoopVars loopVarNames)) loop
             loop' = loop'' -- warning loop'' ("! ITERATIVE LOOP (1a): \n"++(show loopVarNames')++"\n"++(miniPPF loop'')++"\n! END ITERATIVE LOOP (1a)\n" )
             newAst' = newAst -- warning newAst ("! ITERATIVE LOOP (1b): \n"++(show loopVarNames')++"\n"++(miniPPF newAst)++"\n! END ITERATIVE LOOP (1b)\n" )
             nextFor_maybe = extractFirstChildFor loop
-            (priorFortran, nextFor, followingFortran) = case nextFor_maybe of 
-                            Nothing -> error "paralleliseLoop_reduceWithOuterIteration: nextFor_maybe is Nothing"25 
-                            Just a -> a
+            (priorFortran, nextFor, followingFortran) = fromMaybe
+                            (error "paralleliseLoop_reduceWithOuterIteration: nextFor_maybe is Nothing" ) nextFor_maybe
             newLoopVarNames = case getLoopVar nextFor of
                 Just a -> loopVarNames' ++ [a]
-                Nothing -> loopVarNames'                            
+                Nothing -> loopVarNames'
             (reduceWithOuterIterationAttempt_bool, reduceWithOuterIterationAttempt_ast) = paralleliseLoop_reduceWithOuterIteration filename loop (Just nextFor) loopVarNames newLoopVarNames nonTempVars prexistingVars dependencies accessAnalysis
             newAst = case reduceWithOuterIterationAttempt_ast of
                         For a1 a2 a3 a4 a5 a6 fortran -> For a1 a2 a3 a4 a5 a6 (appendFortran_recursive (appendFortran_recursive followingFortran fortran) priorFortran)
 
-paralleliseLoop_reduceWithOuterIteration filename iteratingLoop (Just parallelLoop) loopVarNames loopVarNames' nonTempVars prexistingVars dependencies accessAnalysis 
-                | errors_reduce' == nullAnno     =    
+paralleliseLoop_reduceWithOuterIteration filename iteratingLoop (Just parallelLoop) loopVarNames loopVarNames' nonTempVars prexistingVars dependencies accessAnalysis
+                | errors_reduce' == nullAnno     =
                     (True, appendAnnotation reduceWithOuterIterationCode (compilerName ++ ": Reduction with outer iteration at " ++ errorLocationFormatting (srcSpan iteratingLoop) ++ " with parallel loop at "  ++ errorLocationFormatting (srcSpan parallelLoop')) "")
-                | nextFor_maybe /= Nothing     =     
-                    paralleliseLoop_reduceWithOuterIteration filename (appendAnnotationMap iteratingLoop errors_reduce') (Just nextFor) loopVarNames newLoopVarNames nonTempVars prexistingVars dependencies accessAnalysis 
+                | isJust nextFor_maybe =
+                    paralleliseLoop_reduceWithOuterIteration filename (appendAnnotationMap iteratingLoop errors_reduce') (Just nextFor) loopVarNames newLoopVarNames nonTempVars prexistingVars dependencies accessAnalysis
                 | otherwise                    =    (False, appendAnnotationMap iteratingLoop errors_reduce')
 
-        where            
+        where
             parallelLoop' = parallelLoop -- warning parallelLoop ("! ITERATIVE LOOP (1a): \n"++(show loopVarNames')++"\n"++(miniPPF parallelLoop)++"\n! END ITERATIVE LOOP (1a)\n" )
             loopWrites = extractWrites_query parallelLoop'
-            loopAnalysis = analyseLoop_reduce reduceWithOuterIterationComment [] [] loopWrites nonTempVars prexistingVars dependencies accessAnalysis parallelLoop' 
+            loopAnalysis = analyseLoop_reduce reduceWithOuterIterationComment [] [] loopWrites nonTempVars prexistingVars dependencies accessAnalysis parallelLoop'
             errors_reduce = getErrorAnnotations loopAnalysis
             reductionVarNames = getReductionVarNames loopAnalysis
             reads_reduce = getReads loopAnalysis
@@ -300,11 +291,11 @@ paralleliseLoop_reduceWithOuterIteration filename iteratingLoop (Just parallelLo
             iteratingLoopVars = listSubtract (extractLoopVars iteratingLoop') (extractLoopVars parallelLoop')
 
             (loopCarriedDeps_bool, evaluated_bool, loopCarriedDeps) = loopCarriedDependencyCheck_reductionWithIteration iteratingLoop parallelLoop'
-            errors_reduce' = case loopCarriedDeps_bool of
-                                True -> case evaluated_bool of
-                                        True -> DMap.insert (outputTab ++ "Cannot reduce: Loop carried dependency detected:\n") (formatLoopCarriedDependencies loopCarriedDeps) errors_reduce
-                                        False -> DMap.insert (outputTab ++ "Cannot reduce: Loop carried dependency possible (not evaluated):\n") (formatLoopCarriedDependencies loopCarriedDeps) errors_reduce
-                                False -> errors_reduce
+            errors_reduce' = if loopCarriedDeps_bool
+                then
+                    if evaluated_bool
+                        then DMap.insert (outputTab ++ "Cannot reduce: Loop carried dependency detected:\n") (formatLoopCarriedDependencies loopCarriedDeps) errors_reduce else DMap.insert (outputTab ++ "Cannot reduce: Loop carried dependency possible (not evaluated):\n") (formatLoopCarriedDependencies loopCarriedDeps) errors_reduce
+                else errors_reduce
 
             loopVariables = loopCondtions_query parallelLoop'
 
@@ -313,12 +304,11 @@ paralleliseLoop_reduceWithOuterIteration filename iteratingLoop (Just parallelLo
             stepVarNames = foldl (\accum (_,_,_,x) -> accum ++ extractVarNames x) [] loopVariables
 
             nextFor_maybe = extractFirstChildFor parallelLoop'
-            (priorFortran, nextFor, followingFortran) = case nextFor_maybe of 
-                            Nothing -> error "paralleliseLoop_reduceWithOuterIteration: nextFor is Nothing"
-                            Just a -> a
+            (priorFortran, nextFor, followingFortran) = fromMaybe
+                            (error "paralleliseLoop_reduceWithOuterIteration: nextFor is Nothing") nextFor_maybe
             newLoopVarNames = case getLoopVar nextFor of
                 Just a -> loopVarNames' ++ [a]
-                Nothing -> loopVarNames'                             
+                Nothing -> loopVarNames'
             newAst = appendFortran_recursive followingFortran (appendFortran_recursive reductionCode priorFortran)
 
             reduceWithOuterIterationCode = case iteratingLoop of
@@ -326,17 +316,17 @@ paralleliseLoop_reduceWithOuterIteration filename iteratingLoop (Just parallelLo
                                         _ -> error "paralleliseLoop_reduceWithOuterIteration: iterating loop is not FOR"
 
             varNames_loopConditions = listSubtract (listRemoveDuplications (startVarNames ++ endVarNames ++ stepVarNames)) loopVarNames
-            containedLoopIteratorVarNames = (map (\(a, _, _, _) -> a) (loopCondtions_query parallelLoop'))
+            containedLoopIteratorVarNames = map (\(a, _, _, _) -> a) (loopCondtions_query parallelLoop')
 
-            reads_map_varnames = foldl (++) [] (map extractVarNames reads_reduce)
-            readArgs = (listRemoveDuplications $ listSubtract reads_map_varnames (containedLoopIteratorVarNames ++ iteratingLoopVars)    )    -- List of arguments to kernel that are READ
+            reads_map_varnames = concatMap extractVarNames reads_reduce
+            readArgs = listRemoveDuplications $ listSubtract reads_map_varnames (containedLoopIteratorVarNames ++ iteratingLoopVars)    -- List of arguments to kernel that are READ
             -- readArgs = (listRemoveDuplications $ listSubtract reads_map_varnames (containedLoopIteratorVarNames ++ varNames_loopConditions ++ iteratingLoopVars)    )    -- List of arguments to kernel that are READ
-            
-            writes_map_varnames = foldl (++) [] (map extractVarNames writes_reduce)
-            writtenArgs = (listRemoveDuplications $ listSubtract writes_map_varnames containedLoopIteratorVarNames)     -- List of arguments to kernel that are WRITTEN
-            
-            allReductionVarNames = (foldl (\accum item -> accum ++ extractVarNames item) [] reductionVarNames)
-            reductioNVarInfo = (listRemoveDuplications (foldl (\accum item -> accum ++ [(item, getValueAtSrcSpan item (srcSpan parallelLoop') accessAnalysis)] ) [] allReductionVarNames))
+
+            writes_map_varnames = concat (map extractVarNames writes_reduce)
+            writtenArgs = listRemoveDuplications $ listSubtract writes_map_varnames containedLoopIteratorVarNames     -- List of arguments to kernel that are WRITTEN
+
+            allReductionVarNames = foldl (\accum item -> accum ++ extractVarNames item) [] reductionVarNames
+            reductioNVarInfo = listRemoveDuplications (foldl (\accum item -> accum ++ [(item, getValueAtSrcSpan item (srcSpan parallelLoop') accessAnalysis)] ) [] allReductionVarNames)
 
             iterLoopVariables = extractLoopVars iteratingLoop -- WV20170426
             reductionCode' = reductionCode -- warning reductionCode (miniPPF reductionCode)
@@ -347,7 +337,7 @@ paralleliseLoop_reduceWithOuterIteration filename iteratingLoop (Just parallelLo
                         iterLoopVariables -- WV20170426
                         reductioNVarInfo     -- List of variables that are considered 'reduction variables' along with their initial values
                         (removeLoopConstructs_recursive parallelLoop') -- Body of kernel code
-            reduceWithOuterIterationComment = "Cannot iterative reduce (iter:" ++ (errorLocationFormatting $ srcSpan iteratingLoop) ++ ", par:" ++ (errorLocationFormatting $ srcSpan parallelLoop') ++ "): "
+            reduceWithOuterIterationComment = "Cannot iterative reduce (iter:" ++ errorLocationFormatting (srcSpan iteratingLoop) ++ ", par:" ++ errorLocationFormatting (srcSpan parallelLoop') ++ "): "
 
 --    Function uses a SYB query to get all of the loop condtions contained within a particular AST. loopCondtions_query traverses the AST
 --    and calls getLoopConditions when a Fortran node is encountered.
@@ -363,7 +353,7 @@ getLoopConditions codeSeg = case codeSeg of
 
 --    Traverses the AST and produces a single string that contains all of the parallelising errors for this particular run of the compiler.
 --    compileAnnotationListing traverses the AST and applies getAnnotations to AST nodes. The resulting string is then output to the user.
-compileAnnotationListing codeSeg = everything (++) (mkQ [] getAnnotations) codeSeg
+compileAnnotationListing = everything (++) (mkQ [] getAnnotations)
 
 getAnnotations :: Fortran Anno -> String
 getAnnotations codeSeg = case (tag codeSeg) == nullAnno of
@@ -374,9 +364,9 @@ getAnnotations codeSeg = case (tag codeSeg) == nullAnno of
                 True -> errorListing
                 False -> leadMessage ++ errorListing ++ "\n"
             leadMessage = compilerName ++ ": Cannot parallelise loop at " ++ errorLocationFormatting (srcSpan codeSeg) ++ "\n"
-            errorListing = foldl (\errorDescription key -> errorDescription ++ key ++ 
+            errorListing = foldl (\errorDescription key -> errorDescription ++ key ++
                                                 (foldl (\errorInstance item -> errorInstance ++ "\t" ++ item) "" (applyAnnotationFormatting 2 (listRemoveDuplications (DMap.findWithDefault [] key errorMap)))) ++ "\n"
-                    ) "" keys 
+                    ) "" keys
             keys = DMap.keys errorMap
             errorMap = tag codeSeg
 
@@ -385,8 +375,8 @@ applyAnnotationFormatting itemsPerLine items = formattedList
             where
                 indexorList = [1..(length items)]
                 indexoredItems = zip indexorList items
-                formattedList = map (\(index, item) -> if (mod index itemsPerLine) == 0 && index /= (length items) 
-                                                            then item ++ "\n" else item) indexoredItems 
+                formattedList = map (\(index, item) -> if (mod index itemsPerLine) == 0 && index /= (length items)
+                                                            then item ++ "\n" else item) indexoredItems
 
 formatLoopCarriedDependencies :: [(Expr Anno, Expr Anno)] -> [String]
 formatLoopCarriedDependencies ((readExpr, writtenExpr):exprs) = [outputTab ++ (outputExprFormatting writtenExpr) ++ " -> " ++ (outputExprFormatting readExpr)] ++ formatLoopCarriedDependencies exprs

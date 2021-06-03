@@ -256,13 +256,21 @@ extractOperands expr = [expr]
 
 --    Used to extract the name of a Var in a particular expression
 --    WV: So if the Expr is not a VarName it returns an empty list. Otherwise it returns a list which I think only ever has 1 elt
+-- WV 2021-06-03 I don't understand how this is used because if Expr is e.g. Bin, then it returns []
+-- I guess this is because there is no function primitive, so Var doubles as a function call
 -- extractVarNames :: (Typeable p, Data p) => Expr p -> [VarName p]
 extractVarNames :: Expr Anno -> [VarName Anno]
 extractVarNames (Var _ _ lst) = let
         vs' = filter (\((VarName _ v),args) -> not (v `elem` f95IntrinsicFunctions && length args > 0) ) lst
         vs'' = map (\(x, _) -> x) vs'
+        -- if v is an intrinsic function, I think we need to look inside
+        vsfromi' :: [(VarName Anno,[Expr Anno])]
+        vsfromi' = filter (\((VarName _ v),args) -> (v `elem` f95IntrinsicFunctions && length args > 0) ) lst
+        vsfromi'' = if not (null vsfromi') then
+                concatMap (\(v,args) -> concatMap extractVarNames args) vsfromi'
+            else []
     in
-        vs'' -- if length vs'' == 0 then [VarName nullAnno "DUMMY"] else vs''
+        vs'' ++ vsfromi''  -- if length vs'' == 0 then [VarName nullAnno "DUMMY"] else vs''
 extractVarNames _ = []
 
 extractMaybeVarNames :: Expr Anno -> Maybe [VarName Anno]
@@ -765,18 +773,18 @@ extractEvaluatedType expr = case expr of
 
 evaluateExpr_type :: ValueTable -> Expr Anno -> Maybe(Float, BaseType Anno)
 evaluateExpr_type vt (Bin _ _ binOp expr1 expr2) = case binOp of
-                                                Plus _ ->     maybeBinOp             expr1_eval expr2_eval (+)
-                                                Minus _ ->     maybeBinOp             expr1_eval expr2_eval (-)
-                                                Mul _ ->     maybeBinOp             expr1_eval expr2_eval (*)
-                                                Div _ ->     case extractEvaluatedType expr1_eval of
-                                                                Just (Real _) ->     maybeBinOp expr1_eval expr2_eval (/)
-                                                                Just (Integer _) -> case extractEvaluatedType expr2_eval of
-                                                                                        Just (Real _) ->     maybeBinOp expr1_eval expr2_eval (/)
-                                                                                        Just (Integer _) -> maybeBinOp_integral expr1_eval expr2_eval (quot)
-                                                                                        Nothing -> Nothing
-                                                                Nothing -> Nothing
-                                                Power _ ->     maybeBinOp_float expr1_eval expr2_eval (**) -- WV: was ^
-                                                _ -> Nothing
+                Plus _ ->     maybeBinOp             expr1_eval expr2_eval (+)
+                Minus _ ->     maybeBinOp             expr1_eval expr2_eval (-)
+                Mul _ ->     maybeBinOp             expr1_eval expr2_eval (*)
+                Div _ ->     case extractEvaluatedType expr1_eval of
+                                Just (Real _) ->     maybeBinOp expr1_eval expr2_eval (/)
+                                Just (Integer _) -> case extractEvaluatedType expr2_eval of
+                                                        Just (Real _) ->     maybeBinOp expr1_eval expr2_eval (/)
+                                                        Just (Integer _) -> maybeBinOp_integral expr1_eval expr2_eval (quot)
+                                                        Nothing -> Nothing
+                                Nothing -> Nothing
+                Power _ ->     maybeBinOp_float expr1_eval expr2_eval (**) -- WV: was ^
+                _ -> Nothing
             where
                 expr1_eval = evaluateExpr_type vt expr1
                 expr2_eval = evaluateExpr_type vt expr2
