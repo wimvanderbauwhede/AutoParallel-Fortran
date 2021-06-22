@@ -72,7 +72,8 @@ preProcessingHelper cppDArgs cppXArgs fixedForm inlineModules filename = do
         filename_noext = head $ split '.' filename_no_dot
     writeFile ("./"++filename_noext++"_tmp.f95") preproc_inp   
     -- Apply the C preprocessor on the temporary file and remove the blank lines
-    let cpp_cmd = "cpp -Wno-invalid-pp-token -P "++dFlagStr++ " ./"++filename_noext++"_tmp.f95 | grep -v -E '^\\s*$' "
+    -- The -x option is for GNU, the -W for clang
+    let cpp_cmd = "cpp -x assembler-with-cpp -Wno-invalid-pp-token -P "++dFlagStr++ " ./"++filename_noext++"_tmp.f95 | grep -v -E '^\\s*$' "
     -- putStrLn cpp_cmd
     preproc_inp' <- readCreateProcess (shell cpp_cmd) ""
     let        
@@ -692,7 +693,7 @@ checkSrcSpanContainsSrcSpan ((SrcLoc _ outerLS outerCS), (SrcLoc _ outerLE outer
 listCartesianProduct :: [a] -> [a] -> [(a,a)]
 listCartesianProduct xs ys = [(x,y) | x <- xs, y <- ys]
 
---    Generic function that takes two lists a and b and returns a +list c that is all of the elements of a that do not appear in b.
+--    Generic function that takes two lists a and b and returns a list c that is all of the elements of a that do not appear in b.
 --    WV: all elts of a that are not in b
 listSubtract :: Eq a => [a] -> [a] -> [a]
 listSubtract a b = filter (\x -> notElem x b) a

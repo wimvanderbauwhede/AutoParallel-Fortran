@@ -16,7 +16,7 @@ import Data.Maybe
 import qualified Data.Map as DMap 
 
 import CodeEmitterUtils
-
+import Warning (warning)
 
 -- For  p SrcSpan (VarName p) (Expr p) (Expr p) (Expr p) (Fortran p)
 -- If p SrcSpan (Expr p) (Fortran p) [((Expr p),(Fortran p))] (Maybe (Fortran p))
@@ -181,11 +181,14 @@ generateLoopIterationsExpr (var, start, end, step) = Bin nullAnno nullSrcSpan (D
 
 generateKernelDeclarations :: Program Anno -> Fortran Anno -> ([Decl Anno], [Decl Anno], [Decl Anno])
 generateKernelDeclarations [] _ = ([],[],[])
-generateKernelDeclarations prog (OpenCLMap _ _ r w _ _ _) = (readDecls, writtenDecls, readWriteDecls) -- WV20170426
+generateKernelDeclarations prog (OpenCLMap _ _ r w l _ _) = (readDecls, writtenDecls, readWriteDecls) -- WV20170426
                 where
-                    readArgs = listSubtract r w
-                    writtenArgs = listSubtract w r
-                    readWriteArgs = listIntersection w r
+                    -- WV 2021-06-16 here, i and j are arguments but they shouldn't be!
+                    -- So I remove loopVars
+                    loopVars = map (\(v,_,_,_)->v) l
+                    readArgs = listSubtract r (w++loopVars) -- warning () (show )
+                    writtenArgs = listSubtract w (r++loopVars)
+                    readWriteArgs = listSubtract (listIntersection w r) loopVars
                     
                     readDecls = map (\x ->fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (In nullAnno) prog)) readArgs
                     writtenDecls = map (\x ->fromMaybe (generateImplicitDecl x) (adaptOriginalDeclaration_intent x (Out nullAnno) prog)) writtenArgs

@@ -30,8 +30,11 @@ numGroupsVarName = VarName nullAnno "num_groups"
 numGroupsVar = generateVar numGroupsVarName
 stateVarName = VarName nullAnno "state"
 statePtrVarName = VarName nullAnno "state_ptr"
-statePtrDecl = Decl nullAnno nullSrcSpan [(statePtrVar, NullExpr nullAnno nullSrcSpan, Nothing)] 
-                                    (BaseType nullAnno (Integer nullAnno) [Dimension nullAnno [(NullExpr nullAnno nullSrcSpan, generateIntConstant 1)]] (NullExpr nullAnno nullSrcSpan) (NullExpr nullAnno nullSrcSpan))
+statePtrDecl = Decl nullAnno nullSrcSpan [(statePtrVar, NullExpr nullAnno nullSrcSpan, Nothing)]
+                  (BaseType nullAnno (Integer nullAnno) 
+                  [] -- [Dimension nullAnno [(NullExpr nullAnno nullSrcSpan, generateIntConstant 1)]] 
+                  (NullExpr nullAnno nullSrcSpan) (NullExpr nullAnno nullSrcSpan)
+                  )
 stateVar = generateVar stateVarName
 stateVarDecl = Decl nullAnno nullSrcSpan [(stateVar, NullExpr nullAnno nullSrcSpan, Nothing)] 
                                     (BaseType nullAnno (Integer nullAnno) [] (NullExpr nullAnno nullSrcSpan) (NullExpr nullAnno nullSrcSpan))

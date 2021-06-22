@@ -395,6 +395,7 @@ synthesiseInitModule plat moduleName superKernelName programs allKernelArgsMap k
                                             ++    stateDefinitions
                                             ++    bufferIndexNameDecls
                                             ++    "\ncontains\n\n"
+                                            ++    "\n! WV 2021-06-22\n\n"
                                             ++    oneTab ++ initSubroutineHeader
                                             ++    twoTab ++ "use oclWrapper\n"
                                             ++    usesString
@@ -510,7 +511,7 @@ synthesiseSuperKernel moduleName tabs name programs kernels = if allKernelArgs =
                     kernelAstLists = map (extractKernels) programAsts
 
                     extractedUses = foldl (\accum prog -> listConcatUnique accum (everything (++) (mkQ [] getUses) prog)) [] programAsts
-                    useStatements = "use " ++ initModuleName moduleName ++ "\n"
+                    useStatements = "! use " ++ initModuleName moduleName ++ "\n" -- I don't think we need this anymore?
                                         ++ (foldl (\accum item -> synthesiseUse ([], "") "" [] item) "" extractedUses)
 
                     kernelNames = map snd kernels
@@ -526,12 +527,15 @@ synthesiseSuperKernel moduleName tabs name programs kernels = if allKernelArgs =
                     kernelDeclarations = map (\(kernel_ast, prog_ast) -> generateKernelDeclarations prog_ast kernel_ast) kernelAsts
                     (readDecls, writtenDecls, readWriteDecls) =  foldl (\(accum_r, accum_w, accum_g) (r, w, g) -> (accum_r ++ r, accum_w ++ w, accum_g ++ g)) ([],[],[]) kernelDeclarations
 
-                    declarations = map (convertScalarToOneDimArray) (foldl (collectDecls) [] (readDecls ++ writtenDecls ++ readWriteDecls))
+                    declarations = 
+                        -- map (convertScalarToOneDimArray) (
+                            foldl (collectDecls) [] (readDecls ++ writtenDecls ++ readWriteDecls)
+                            -- )
                     declarationsStr = foldl (\accum item -> accum ++ synthesiseDecl tabs item) "" declarations
 
                     stateVarDeclStr = synthesiseDecl tabs stateVarDecl
                     statePointerDeclStr = synthesiseDecl tabs statePtrDecl
-                    stateAssignment = tabs ++ (varNameStr stateVarName) ++ " = " ++ (varNameStr stateVarName) ++ "_ptr(1) ! state \n"
+                    stateAssignment = tabs ++ (varNameStr stateVarName) ++ " = " ++ (varNameStr stateVarName) ++ "_ptr ! state \n"
 
                     superKernel_header = "subroutine " ++ name ++ "(" ++ (foldl (\accum item -> accum ++ "," ++ (varNameStr item)) (varNameStr $ head allKernelArgs) (tail allKernelArgs)) ++ ")\n"
                     superKernel_footer = "end subroutine " ++ name ++ "\n"
@@ -540,7 +544,17 @@ synthesiseSuperKernel moduleName tabs name programs kernels = if allKernelArgs =
                     caseAlternatives = foldl (\accum (state, name, args) -> accum ++ synthesiseKernelCaseAlternative (tabs ++ outputTab) state name args) "" (zip3 stateNames kernelNames kernelArgs)
                     selectCase = outputTab ++ "select case(" ++ (varNameStr stateVarName) ++ ")\n" ++ caseAlternatives ++ outputTab ++ "end select\n"
 
-                    superKernel = superKernel_header ++ useStatements ++ declarationsStr ++ "\n" ++ stateVarDeclStr ++ statePointerDeclStr ++ stateDefinitions ++ stateAssignment ++ superKernel_body ++ superKernel_footer
+                    superKernel = 
+                        superKernel_header ++ 
+                        useStatements ++ 
+                        declarationsStr ++ 
+                        "\n" ++ 
+                        stateVarDeclStr ++ 
+                        statePointerDeclStr ++ 
+                        stateDefinitions ++ 
+                        stateAssignment ++ 
+                        superKernel_body ++ 
+                        superKernel_footer
 
 synthesiseKernelCaseAlternative :: String -> String -> String -> [VarName Anno] -> String
 synthesiseKernelCaseAlternative tabs state kernelName [] = "\n! Skipped call to "++kernelName++", has no args\n" -- error $ "synthesiseKernelCaseAlternative: no arguments for "++kernelName
@@ -1346,25 +1360,29 @@ synthesiseOpenCLReduceFPGA plat inTabs originalLines orig_ast programInfo (OpenC
                                                                         _ -> foldl1 (\accum item -> appendFortran_recursive item accum) loopInitialisers
 
 -- WV
+-- "      integer, intent(InOut) :: j\n"
 removeIntent :: String -> String
 removeIntent line = let
-            chunks' = words line
+            -- trim leading spaced
+            line' =  dropWhile isSpace line
+            -- recreate the indent
+--            indent = take ((length line) - (length line')) (repeat ' ')
+            -- split on spaces
+            chunks' = words line'
       in
-        if length chunks' < 3 then line
+        if length chunks' < 3 then line' -- means no additional attributes
         else
             let
-                line' = unwords (init (init chunks')) -- stripped "::","var"
+                line'' = unwords (init (init chunks')) -- stripped "::","var"
                 var = last chunks'
-                chunks = split ',' line'
-                chunksNoIntent = filter (\chunk -> length chunk < 10 || take 6 chunk /= "intent") chunks
+                chunks = split ',' line''
+                chunks'' = map (\c -> dropWhile isSpace c) chunks -- trim each chunk
+                chunksNoIntent = filter (\chunk -> length chunk < 10 || take 6 chunk /= "intent") chunks''
                 lineNoIntent = (intercalate "," chunksNoIntent) ++ " :: "++var
---        chunksNoIntent' = map (\chunk -> if length chunk > 11 && take 9 chunk == "dimension" then init chunk else chunk) chunksNoIntent
             in
---        unwords chunksNoIntent'
+--                indent ++ 
                 lineNoIntent
 
---                   if chunks !! 1 == "parameter" && (chunks !! 3) !! 0 == 'u' then error line  else
---                      chunks !! (length chunks - 2) == "::"
 -- WV
 matchVarNameInDecl :: String -> String -> Bool
 matchVarNameInDecl var_name line = let
@@ -1409,27 +1427,6 @@ synthesiseKernelCall plat (progAst, filename) tabs (OpenCLMap anno src r w l il 
 
                 (readDecls, writtenDecls, readWriteDecls) = generateKernelDeclarations progAst (OpenCLMap anno src r w l il fortran) -- WV20170426
 
-
-{-
-! ---- BEGIN press_reduce_103 -------------------------------------------------------------------------------------------------
-              oclGlobalRange = (NTH * NUNITS) ! OK
-              oclLocalRange = NTH ! OK
-              ngroups = NUNITS ! OK
-              state_ptr(1) = ST_PRESS_REDUCE_103 ! OK
-              
-              call oclWrite1DFloatArrayBuffer(global_sor_array_buf,global_sor_array_sz,global_sor_array) ! OK
-              call oclWrite1DIntArrayBuffer(state_ptr_buf,state_ptr_sz,state_ptr) ! OK
-
-              call runOcl(oclGlobalRange,oclLocalRange,exectime) ! OK
-              ! call press_reduce_103 ! OK
-              call oclRead1DFloatArrayBuffer(global_sor_array_buf,global_sor_array_sz,global_sor_array)
-              call oclRead1DFloatArrayBuffer(global_sor_array_buf,global_sor_array_sz,global_sor_array)
-              do r_iter=1, NUNITS
-                  sor = (sor + global_sor_array(r_iter))
-              end do
-
-! ---- END --------------------------------------------------------------------------------------------------------------------
--}
 synthesiseKernelCall plat (progAst, filename) tabs (OpenCLReduce anno src r w l il rv fortran) = (commentSeparator ("BEGIN " ++ kernelName)) -- WV20170426
                                                             ++ tabs ++ "oclGlobalRange = " ++ (if plat == FPGA then "1" else outputExprFormatting reductionWorkItemsExpr) ++ "\n"
                                                             ++ tabs ++ "oclLocalRange = " ++ (if plat == FPGA then "1" else outputExprFormatting nthVar) ++ "\n"

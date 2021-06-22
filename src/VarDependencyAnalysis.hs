@@ -532,8 +532,8 @@ extractArrayIndexReadWrite_foldl (reads, writes) ae@(Assg _ _ expr1 expr2) = (ne
         -- Get all variables from the RHS, but not the index variables
         readExpr_operands = filter isVar (extractOperands expr2)
         -- Get the variable name. The head is because oddly Var is Var p SrcSpan  [(VarName p, [Expr p])] so a list of tuples
-        readExpr_varNames = map (\x -> if null (extractVarNames x) 
-                    then error $ (miniPPF ae)++" => "++(show x) 
+        readExpr_varNames = filter (\(VarName _ n) -> n /= "DUMMY") $ map (\x -> if null (extractVarNames x) 
+                    then VarName nullAnno "DUMMY" -- error $ (miniPPF ae)++" => "++(show readExpr_operands) 
                     else head (extractVarNames x)
             ) readExpr_operands
         readExpr_indexExprs = map extractContainedVars readExpr_operands
